@@ -3,7 +3,6 @@ import { and, eq, inArray, sql } from 'drizzle-orm'
 import type { WalletDB } from './db'
 import type { NewNote, NewTxHistory, NewWallet } from './schema'
 import {
-
   balances,
   notes,
   scanState,

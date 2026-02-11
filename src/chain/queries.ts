@@ -3,7 +3,6 @@ import { and, eq, gte, inArray, lte, sql } from 'drizzle-orm'
 import type { ChainDB } from './db'
 import type { NewCommitment, NewMerkleNode, NewMerkleRoot, NewNullifier } from './schema'
 import {
-
   commitments,
   merkleNodes,
   merkleRoots,
