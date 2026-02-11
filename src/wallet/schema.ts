@@ -1,17 +1,17 @@
-import { sqliteTable, text, integer, blob, index, primaryKey, customType } from 'drizzle-orm/sqlite-core';
-import { sql } from 'drizzle-orm';
+import { sql } from 'drizzle-orm'
+import { blob, customType, index, integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
 const bigint = customType<{ data: bigint; driverData: string }>({
-  dataType() {
-    return 'text';
+  dataType () {
+    return 'text'
   },
-  toDriver(value: bigint): string {
-    return value.toString();
+  toDriver (value: bigint): string {
+    return value.toString()
   },
-  fromDriver(value: string): bigint {
-    return BigInt(value);
+  fromDriver (value: string): bigint {
+    return BigInt(value)
   },
-});
+})
 
 export const wallets = sqliteTable('wallets', {
   id: text('id').primaryKey().notNull(),
@@ -20,7 +20,7 @@ export const wallets = sqliteTable('wallets', {
   createdAt: integer('created_at', { mode: 'timestamp' })
     .notNull()
     .default(sql`(unixepoch())`),
-});
+})
 
 export const notes = sqliteTable(
   'notes',
@@ -47,7 +47,7 @@ export const notes = sqliteTable(
     nullifierIdx: index('notes_nullifier_idx').on(table.nullifier),
     treeLeafIdx: index('notes_tree_leaf_idx').on(table.treeId, table.leafIndex),
   })
-);
+)
 
 export const balances = sqliteTable(
   'balances',
@@ -64,7 +64,7 @@ export const balances = sqliteTable(
   (table) => ({
     pk: primaryKey({ columns: [table.walletId, table.token] }),
   })
-);
+)
 
 export const scanState = sqliteTable(
   'scan_state',
@@ -81,7 +81,7 @@ export const scanState = sqliteTable(
   (table) => ({
     pk: primaryKey({ columns: [table.walletId, table.chainId] }),
   })
-);
+)
 
 export const txHistory = sqliteTable(
   'tx_history',
@@ -103,16 +103,16 @@ export const txHistory = sqliteTable(
     walletBlockIdx: index('tx_history_wallet_block_idx').on(table.walletId, table.blockNumber),
     txidIdx: index('tx_history_txid_idx').on(table.txid),
   })
-);
+)
 
-export type Wallet = typeof wallets.$inferSelect;
-export type Note = typeof notes.$inferSelect;
-export type Balance = typeof balances.$inferSelect;
-export type ScanState = typeof scanState.$inferSelect;
-export type TxHistory = typeof txHistory.$inferSelect;
+export type Wallet = typeof wallets.$inferSelect
+export type Note = typeof notes.$inferSelect
+export type Balance = typeof balances.$inferSelect
+export type ScanState = typeof scanState.$inferSelect
+export type TxHistory = typeof txHistory.$inferSelect
 
-export type NewWallet = typeof wallets.$inferInsert;
-export type NewNote = typeof notes.$inferInsert;
-export type NewBalance = typeof balances.$inferInsert;
-export type NewScanState = typeof scanState.$inferInsert;
-export type NewTxHistory = typeof txHistory.$inferInsert;
+export type NewWallet = typeof wallets.$inferInsert
+export type NewNote = typeof notes.$inferInsert
+export type NewBalance = typeof balances.$inferInsert
+export type NewScanState = typeof scanState.$inferInsert
+export type NewTxHistory = typeof txHistory.$inferInsert

@@ -1,42 +1,41 @@
-import { eq, and, gte, lte, inArray, sql } from 'drizzle-orm';
-import type { ChainDB } from './db';
-import {
-  nullifiers,
-  merkleNodes,
-  commitments,
-  merkleRoots,
-  syncState,
-  type NewNullifier,
-  type NewMerkleNode,
-  type NewCommitment,
-  type NewMerkleRoot,
-} from './schema';
+import { and, eq, gte, inArray, lte, sql } from 'drizzle-orm'
 
-export function nullifierExists(db: ChainDB, nullifier: string): boolean {
+import type { ChainDB } from './db'
+import type { NewCommitment, NewMerkleNode, NewMerkleRoot, NewNullifier } from './schema'
+import {
+
+  commitments,
+  merkleNodes,
+  merkleRoots,
+  nullifiers,
+  syncState
+} from './schema'
+
+export function nullifierExists (db: ChainDB, nullifier: string): boolean {
   const result = db
     .select({ nullifier: nullifiers.nullifier })
     .from(nullifiers)
     .where(eq(nullifiers.nullifier, nullifier))
-    .get();
+    .get()
 
-  return result !== undefined;
+  return result !== undefined
 }
 
-export function insertNullifiersBatch(db: ChainDB, records: NewNullifier[]): number {
-  if (records.length === 0) return 0;
+export function insertNullifiersBatch (db: ChainDB, records: NewNullifier[]): number {
+  if (records.length === 0) return 0
 
   return db.transaction(() => {
     const result = db
       .insert(nullifiers)
       .values(records)
       .onConflictDoNothing()
-      .run();
+      .run()
 
-    return result.changes;
-  });
+    return result.changes
+  })
 }
 
-export function getNullifiersByBlockRange(
+export function getNullifiersByBlockRange (
   db: ChainDB,
   fromBlock: bigint,
   toBlock: bigint
@@ -50,21 +49,21 @@ export function getNullifiersByBlockRange(
         lte(nullifiers.blockNumber, toBlock)
       )
     )
-    .all();
+    .all()
 }
 
-export function deleteNullifiersFromBlock(db: ChainDB, fromBlock: bigint): number {
+export function deleteNullifiersFromBlock (db: ChainDB, fromBlock: bigint): number {
   return db.transaction(() => {
     const result = db
       .delete(nullifiers)
       .where(gte(nullifiers.blockNumber, fromBlock))
-      .run();
+      .run()
 
-    return result.changes;
-  });
+    return result.changes
+  })
 }
 
-export function getMerkleNode(
+export function getMerkleNode (
   db: ChainDB,
   treeId: number,
   level: number,
@@ -80,74 +79,74 @@ export function getMerkleNode(
         eq(merkleNodes.index, index)
       )
     )
-    .get();
+    .get()
 }
 
-export function insertMerkleNodesBatch(db: ChainDB, nodes: NewMerkleNode[]): number {
-  if (nodes.length === 0) return 0;
+export function insertMerkleNodesBatch (db: ChainDB, nodes: NewMerkleNode[]): number {
+  if (nodes.length === 0) return 0
 
   return db.transaction(() => {
     const result = db
       .insert(merkleNodes)
       .values(nodes)
       .onConflictDoNothing()
-      .run();
+      .run()
 
-    return result.changes;
-  });
+    return result.changes
+  })
 }
 
-export function getNodesAtLevel(db: ChainDB, treeId: number, level: number) {
+export function getNodesAtLevel (db: ChainDB, treeId: number, level: number) {
   return db
     .select()
     .from(merkleNodes)
     .where(and(eq(merkleNodes.treeId, treeId), eq(merkleNodes.level, level)))
     .orderBy(merkleNodes.index)
-    .all();
+    .all()
 }
 
-export function getMerkleSiblingPath(
+export function getMerkleSiblingPath (
   db: ChainDB,
   treeId: number,
   leafIndex: bigint,
   depth: number
 ): Uint8Array[] {
-  const siblings: Uint8Array[] = [];
-  let currentIndex = leafIndex;
+  const siblings: Uint8Array[] = []
+  let currentIndex = leafIndex
 
   for (let level = 0; level < depth; level++) {
-    const siblingIndex = currentIndex ^ 1n;
+    const siblingIndex = currentIndex ^ 1n
 
-    const sibling = getMerkleNode(db, treeId, level, siblingIndex);
+    const sibling = getMerkleNode(db, treeId, level, siblingIndex)
 
     if (!sibling) {
       throw new Error(
         `Missing merkle node: tree=${treeId} level=${level} index=${siblingIndex}`
-      );
+      )
     }
 
-    siblings.push(sibling.hash);
-    currentIndex = currentIndex >> 1n;
+    siblings.push(sibling.hash)
+    currentIndex = currentIndex >> 1n
   }
 
-  return siblings;
+  return siblings
 }
 
-export function insertCommitmentsBatch(db: ChainDB, records: NewCommitment[]): number {
-  if (records.length === 0) return 0;
+export function insertCommitmentsBatch (db: ChainDB, records: NewCommitment[]): number {
+  if (records.length === 0) return 0
 
   return db.transaction(() => {
     const result = db
       .insert(commitments)
       .values(records)
       .onConflictDoNothing()
-      .run();
+      .run()
 
-    return result.changes;
-  });
+    return result.changes
+  })
 }
 
-export function getCommitmentsByLeafRange(
+export function getCommitmentsByLeafRange (
   db: ChainDB,
   treeId: number,
   fromIndex: bigint,
@@ -164,18 +163,17 @@ export function getCommitmentsByLeafRange(
       )
     )
     .orderBy(commitments.leafIndex)
-    .all();
+    .all()
 }
 
 /**
  * Gets commitments by block range (for reorg handling).
- *
  * @param db - Chain database instance
  * @param fromBlock - Start block (inclusive)
  * @param toBlock - End block (inclusive)
  * @returns Array of commitments in range
  */
-export function getCommitmentsByBlockRange(
+export function getCommitmentsByBlockRange (
   db: ChainDB,
   fromBlock: bigint,
   toBlock: bigint
@@ -189,38 +187,37 @@ export function getCommitmentsByBlockRange(
         lte(commitments.blockNumber, toBlock)
       )
     )
-    .all();
+    .all()
 }
 
 /**
  * Deletes commitments from a block onwards (for reorg).
- *
  * @param db - Chain database instance
  * @param fromBlock - Delete commitments from this block onwards
  * @returns Number of rows deleted
  */
-export function deleteCommitmentsFromBlock(db: ChainDB, fromBlock: bigint): number {
+export function deleteCommitmentsFromBlock (db: ChainDB, fromBlock: bigint): number {
   return db.transaction(() => {
     const result = db
       .delete(commitments)
       .where(gte(commitments.blockNumber, fromBlock))
-      .run();
+      .run()
 
-    return result.changes;
-  });
+    return result.changes
+  })
 }
 
-export function getCommitmentsByHashes(db: ChainDB, hashes: string[]) {
-  if (hashes.length === 0) return [];
+export function getCommitmentsByHashes (db: ChainDB, hashes: string[]) {
+  if (hashes.length === 0) return []
 
   return db
     .select()
     .from(commitments)
     .where(inArray(commitments.hash, hashes))
-    .all();
+    .all()
 }
 
-export function upsertMerkleRoot(db: ChainDB, root: NewMerkleRoot): number {
+export function upsertMerkleRoot (db: ChainDB, root: NewMerkleRoot): number {
   const result = db
     .insert(merkleRoots)
     .values(root)
@@ -228,30 +225,30 @@ export function upsertMerkleRoot(db: ChainDB, root: NewMerkleRoot): number {
       target: [merkleRoots.treeId, merkleRoots.blockNumber],
       set: { root: root.root },
     })
-    .run();
+    .run()
 
-  return result.changes;
+  return result.changes
 }
 
-export function getLatestMerkleRoot(db: ChainDB, treeId: number) {
+export function getLatestMerkleRoot (db: ChainDB, treeId: number) {
   return db
     .select()
     .from(merkleRoots)
     .where(eq(merkleRoots.treeId, treeId))
     .orderBy(sql`${merkleRoots.blockNumber} DESC`)
     .limit(1)
-    .get();
+    .get()
 }
 
-export function getSyncState(db: ChainDB, chainId: number) {
+export function getSyncState (db: ChainDB, chainId: number) {
   return db
     .select()
     .from(syncState)
     .where(eq(syncState.chainId, chainId))
-    .get();
+    .get()
 }
 
-export function updateSyncState(
+export function updateSyncState (
   db: ChainDB,
   chainId: number,
   lastBlock: bigint
@@ -262,34 +259,34 @@ export function updateSyncState(
       target: syncState.chainId,
       set: { lastBlock, updatedAt: sql`(unixepoch())` },
     })
-    .run();
+    .run()
 }
 
-export function getChainDBStats(db: ChainDB) {
+export function getChainDBStats (db: ChainDB) {
   const nullifiersCount = db
     .select({ count: sql<number>`count(*)` })
     .from(nullifiers)
-    .get();
+    .get()
 
   const nodesCount = db
     .select({ count: sql<number>`count(*)` })
     .from(merkleNodes)
-    .get();
+    .get()
 
   const commitmentsCount = db
     .select({ count: sql<number>`count(*)` })
     .from(commitments)
-    .get();
+    .get()
 
   const rootsCount = db
     .select({ count: sql<number>`count(*)` })
     .from(merkleRoots)
-    .get();
+    .get()
 
   return {
     nullifiers: nullifiersCount?.count ?? 0,
     merkleNodes: nodesCount?.count ?? 0,
     commitments: commitmentsCount?.count ?? 0,
     merkleRoots: rootsCount?.count ?? 0,
-  };
+  }
 }

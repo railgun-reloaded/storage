@@ -2,28 +2,31 @@
  * Test utilities and helpers for storage tests.
  */
 
-import { createChainDB, createWalletDB, type ChainDB, type WalletDB } from '../src/index';
-import type {
-  NewNullifier,
-  NewMerkleNode,
-  NewCommitment,
-  NewWallet,
-  NewNote,
-} from '../src/index';
+import {
+  type ChainDB,
+  type NewCommitment,
+  type NewMerkleNode,
+  type NewNote,
+  type NewNullifier,
+  type NewWallet,
+  type WalletDB,
+  createChainDB,
+  createWalletDB
+} from '../src/index'
 
 /**
  * Creates an in-memory chain database for testing.
  * Initializes schema tables manually since migrations don't run for :memory:.
  */
-export function createTestChainDB(): ChainDB {
+export function createTestChainDB (): ChainDB {
   const db = createChainDB({
     path: ':memory:',
     enableWAL: false,
     runMigrations: false, // In-memory doesn't need migrations
-  });
+  })
 
   // Initialize schema tables for in-memory database
-  const sqlite = db.$client;
+  const sqlite = db.$client
 
   sqlite.exec(`
     CREATE TABLE IF NOT EXISTS nullifiers (
@@ -70,24 +73,24 @@ export function createTestChainDB(): ChainDB {
       last_block TEXT NOT NULL,
       updated_at INTEGER NOT NULL DEFAULT (unixepoch())
     );
-  `);
+  `)
 
-  return db;
+  return db
 }
 
 /**
  * Creates an in-memory wallet database for testing.
  * Initializes schema tables manually since migrations don't run for :memory:.
  */
-export function createTestWalletDB(): WalletDB {
+export function createTestWalletDB (): WalletDB {
   const db = createWalletDB({
     path: ':memory:',
     enableWAL: false,
     runMigrations: false, // In-memory doesn't need migrations
-  });
+  })
 
   // Initialize schema tables for in-memory database
-  const sqlite = db.$client;
+  const sqlite = db.$client
 
   sqlite.exec(`
     CREATE TABLE IF NOT EXISTS wallets (
@@ -147,56 +150,59 @@ export function createTestWalletDB(): WalletDB {
     );
     CREATE INDEX IF NOT EXISTS tx_history_wallet_block_idx ON tx_history(wallet_id, block_number);
     CREATE INDEX IF NOT EXISTS tx_history_txid_idx ON tx_history(txid);
-  `);
+  `)
 
-  return db;
+  return db
 }
 
 /**
  * Test data factories
  */
 
-let nullifierCounter = 0;
+let nullifierCounter = 0
 
 /**
  * Creates a test nullifier record.
+ * @param overrides
  */
-export function createTestNullifier(overrides?: Partial<NewNullifier>): NewNullifier {
-  nullifierCounter++;
+export function createTestNullifier (overrides?: Partial<NewNullifier>): NewNullifier {
+  nullifierCounter++
   return {
     nullifier: `0x${nullifierCounter.toString(16).padStart(64, '0')}`,
     txid: `0x${Math.random().toString(16).slice(2).padStart(64, '0')}`,
     blockNumber: 1000n + BigInt(nullifierCounter),
     treeId: 0,
     ...overrides,
-  };
+  }
 }
 
-let nodeCounter = 0;
+let nodeCounter = 0
 
 /**
  * Creates a test merkle node record.
+ * @param overrides
  */
-export function createTestMerkleNode(overrides?: Partial<NewMerkleNode>): NewMerkleNode {
-  nodeCounter++;
+export function createTestMerkleNode (overrides?: Partial<NewMerkleNode>): NewMerkleNode {
+  nodeCounter++
   return {
     treeId: 0,
     level: 0,
     index: BigInt(nodeCounter),
     hash: Buffer.from(nodeCounter.toString(16).padStart(64, '0'), 'hex'),
     ...overrides,
-  };
+  }
 }
 
-let commitmentCounter = 0;
+let commitmentCounter = 0
 
 /**
  * Creates a test commitment record.
+ * @param overrides
  */
-export function createTestCommitment(
+export function createTestCommitment (
   overrides?: Partial<NewCommitment>
 ): NewCommitment {
-  commitmentCounter++;
+  commitmentCounter++
   return {
     hash: `0x${commitmentCounter.toString(16).padStart(64, '0')}`,
     treeId: 0,
@@ -204,31 +210,33 @@ export function createTestCommitment(
     blockNumber: 1000n + BigInt(commitmentCounter),
     txid: `0x${Math.random().toString(16).slice(2).padStart(64, '0')}`,
     ...overrides,
-  };
+  }
 }
 
-let walletCounter = 0;
+let walletCounter = 0
 
 /**
  * Creates a test wallet record.
+ * @param overrides
  */
-export function createTestWallet(overrides?: Partial<NewWallet>): NewWallet {
-  walletCounter++;
+export function createTestWallet (overrides?: Partial<NewWallet>): NewWallet {
+  walletCounter++
   return {
     id: `wallet-${walletCounter}`,
     encryptedKeys: Buffer.from('encrypted-keys-placeholder'),
     name: `Test Wallet ${walletCounter}`,
     ...overrides,
-  };
+  }
 }
 
-let noteCounter = 0;
+let noteCounter = 0
 
 /**
  * Creates a test note record.
+ * @param overrides
  */
-export function createTestNote(overrides?: Partial<NewNote>): NewNote {
-  noteCounter++;
+export function createTestNote (overrides?: Partial<NewNote>): NewNote {
+  noteCounter++
   return {
     commitment: `0x${noteCounter.toString(16).padStart(64, '0')}`,
     walletId: 'wallet-1',
@@ -240,17 +248,16 @@ export function createTestNote(overrides?: Partial<NewNote>): NewNote {
     treeId: 0,
     leafIndex: BigInt(noteCounter),
     ...overrides,
-  };
+  }
 }
-
 
 /**
  * Resets test counters (for test isolation).
  */
-export function resetTestCounters(): void {
-  nullifierCounter = 0;
-  nodeCounter = 0;
-  commitmentCounter = 0;
-  walletCounter = 0;
-  noteCounter = 0;
+export function resetTestCounters (): void {
+  nullifierCounter = 0
+  nodeCounter = 0
+  commitmentCounter = 0
+  walletCounter = 0
+  noteCounter = 0
 }

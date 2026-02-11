@@ -6,7 +6,6 @@
  * - wallet.db: Private wallet data (one per wallet)
  *
  * Built on Drizzle ORM with SQLite for type-safe, performant persistence.
- *
  * @example
  * ```typescript
  * import { createChainDB, createWalletDB } from '@reloaded/storage';
@@ -21,10 +20,9 @@
  *   path: '~/.railgun/wallets/my-wallet/wallet.db',
  * });
  * ```
- *
  * @packageDocumentation
  */
 
 // Re-export everything from chain and wallet modules
-export * from './chain/index';
-export * from './wallet/index';
+export * from './chain/index'
+export * from './wallet/index'
