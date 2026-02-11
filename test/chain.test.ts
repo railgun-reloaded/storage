@@ -5,7 +5,7 @@ import {
   createTestMerkleNode,
   createTestCommitment,
   resetTestCounters,
-} from './setup.js';
+} from './setup';
 import {
   insertNullifiersBatch,
   nullifierExists,
@@ -18,7 +18,7 @@ import {
   updateSyncState,
   getSyncState,
   getChainDBStats,
-} from '../src/chain/index.js';
+} from '../src/chain/index';
 
 describe('Chain Database', () => {
   beforeEach(() => {

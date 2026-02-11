@@ -4,7 +4,7 @@ import {
   createTestWallet,
   createTestNote,
   resetTestCounters,
-} from './setup.js';
+} from './setup';
 import {
   createWallet,
   getWallet,
@@ -26,7 +26,7 @@ import {
   insertTxHistory,
   getTxHistory,
   getWalletDBStats,
-} from '../src/wallet/index.js';
+} from '../src/wallet/index';
 
 describe('Wallet Database', () => {
   beforeEach(() => {

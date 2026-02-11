@@ -26,5 +26,5 @@
  */
 
 // Re-export everything from chain and wallet modules
-export * from './chain/index.js';
-export * from './wallet/index.js';
+export * from './chain/index';
+export * from './wallet/index';

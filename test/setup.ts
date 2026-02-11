@@ -2,14 +2,14 @@
  * Test utilities and helpers for storage tests.
  */
 
-import { createChainDB, createWalletDB, type ChainDB, type WalletDB } from '../src/index.js';
+import { createChainDB, createWalletDB, type ChainDB, type WalletDB } from '../src/index';
 import type {
   NewNullifier,
   NewMerkleNode,
   NewCommitment,
   NewWallet,
   NewNote,
-} from '../src/index.js';
+} from '../src/index';
 
 /**
  * Creates an in-memory chain database for testing.

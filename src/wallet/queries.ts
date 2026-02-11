@@ -1,5 +1,5 @@
 import { eq, and, inArray, sql } from 'drizzle-orm';
-import type { WalletDB } from './db.js';
+import type { WalletDB } from './db';
 import {
   wallets,
   notes,
@@ -11,7 +11,7 @@ import {
   type NewBalance,
   type NewScanState,
   type NewTxHistory,
-} from './schema.js';
+} from './schema';
 
 /**
  * Wallet Operations

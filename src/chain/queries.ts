@@ -1,5 +1,5 @@
 import { eq, and, gte, lte, inArray, sql } from 'drizzle-orm';
-import type { ChainDB } from './db.js';
+import type { ChainDB } from './db';
 import {
   nullifiers,
   merkleNodes,
@@ -10,7 +10,7 @@ import {
   type NewMerkleNode,
   type NewCommitment,
   type NewMerkleRoot,
-} from './schema.js';
+} from './schema';
 
 /**
  * Nullifier Operations

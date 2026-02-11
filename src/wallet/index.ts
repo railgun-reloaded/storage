@@ -5,6 +5,6 @@
  * One database instance per wallet.
  */
 
-export * from './schema.js';
-export * from './db.js';
-export * from './queries.js';
+export * from './schema';
+export * from './db';
+export * from './queries';
