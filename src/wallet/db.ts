@@ -46,8 +46,11 @@ export interface WalletDBConfig {
 
 /**
  * Wallet database instance with typed schema.
+ * Includes both Drizzle wrapper and underlying SQLite client.
  */
-export type WalletDB = BetterSQLite3Database<typeof schema>;
+export interface WalletDB extends BetterSQLite3Database<typeof schema> {
+  $client: Database.Database;
+}
 
 /**
  * Creates and initializes a wallet database instance.
@@ -101,7 +104,10 @@ export function createWalletDB(config: WalletDBConfig): WalletDB {
   configurePragmas(sqlite, enableWAL);
 
   // Create Drizzle instance with schema
-  const db = drizzle(sqlite, { schema });
+  const db = drizzle(sqlite, { schema }) as WalletDB;
+
+  // Attach SQLite client for direct access
+  db.$client = sqlite;
 
   // Run migrations if enabled
   if (runMigrations && path !== ':memory:') {
@@ -203,10 +209,10 @@ export function backupWalletDB(db: WalletDB, backupPath: string): void {
  * Changes the encryption key for the wallet database (future).
  * Requires SQLCipher support.
  *
- * @param db - Wallet database instance
- * @param newKey - New encryption key
+ * @param _db - Wallet database instance
+ * @param _newKey - New encryption key
  */
-export function rekeyWalletDB(db: WalletDB, newKey: string): void {
+export function rekeyWalletDB(_db: WalletDB, _newKey: string): void {
   // Future: SQLCipher rekey
   // const sqlite = db.$client;
   // sqlite.pragma(`rekey = '${newKey}'`);

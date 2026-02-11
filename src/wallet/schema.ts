@@ -1,5 +1,21 @@
-import { sqliteTable, text, integer, blob, index, primaryKey } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, integer, blob, index, primaryKey, customType } from 'drizzle-orm/sqlite-core';
 import { sql } from 'drizzle-orm';
+
+/**
+ * Custom bigint column type for SQLite.
+ * Stores as TEXT in SQLite, converts to/from BigInt in JavaScript.
+ */
+const bigint = customType<{ data: bigint; driverData: string }>({
+  dataType() {
+    return 'text';
+  },
+  toDriver(value: bigint): string {
+    return value.toString();
+  },
+  fromDriver(value: string): bigint {
+    return BigInt(value);
+  },
+});
 
 /**
  * Wallets table - metadata for each RAILGUN wallet.
@@ -48,7 +64,7 @@ export const notes = sqliteTable(
     token: text('token').notNull(),
 
     /** Note amount (as bigint for arbitrary precision) */
-    amount: text('amount', { mode: 'bigint' }).notNull(),
+    amount: bigint('amount').notNull(),
 
     /** Whether this note has been spent */
     spent: integer('spent', { mode: 'boolean' }).notNull().default(false),
@@ -57,13 +73,13 @@ export const notes = sqliteTable(
     spentTxid: text('spent_txid'),
 
     /** Block number where note was created */
-    blockNumber: text('block_number', { mode: 'bigint' }).notNull(),
+    blockNumber: bigint('block_number').notNull(),
 
     /** Merkle tree ID where commitment is stored */
     treeId: integer('tree_id').notNull(),
 
     /** Leaf index in the merkle tree */
-    leafIndex: text('leaf_index', { mode: 'bigint' }).notNull(),
+    leafIndex: bigint('leaf_index').notNull(),
 
     /** Timestamp when note was decrypted and added to wallet */
     decryptedAt: integer('decrypted_at', { mode: 'timestamp' })
@@ -103,7 +119,7 @@ export const balances = sqliteTable(
     token: text('token').notNull(),
 
     /** Total balance (sum of unspent notes) */
-    amount: text('amount', { mode: 'bigint' }).notNull(),
+    amount: bigint('amount').notNull(),
 
     /** Last update timestamp */
     updatedAt: integer('updated_at', { mode: 'timestamp' })
@@ -134,7 +150,7 @@ export const scanState = sqliteTable(
     chainId: integer('chain_id').notNull(),
 
     /** Last block number scanned by this wallet */
-    lastScannedBlock: text('last_scanned_block', { mode: 'bigint' }).notNull(),
+    lastScannedBlock: bigint('last_scanned_block').notNull(),
 
     /** Last update timestamp */
     updatedAt: integer('updated_at', { mode: 'timestamp' })
@@ -171,7 +187,7 @@ export const txHistory = sqliteTable(
     txid: text('txid').notNull(),
 
     /** Block number where transaction was included */
-    blockNumber: text('block_number', { mode: 'bigint' }).notNull(),
+    blockNumber: bigint('block_number').notNull(),
 
     /** Transaction timestamp (block timestamp) */
     timestamp: integer('timestamp', { mode: 'timestamp' }).notNull(),

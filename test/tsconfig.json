@@ -1,0 +1,12 @@
+{
+  "extends": "@railgun-reloaded/tsconfig/tsconfig.json",
+  "compilerOptions": {
+    "outDir": "./",
+    "esModuleInterop": true,
+    "skipLibCheck": true
+  },
+  "include": [
+    "./**/*.ts",
+    "../src/**/*.ts"
+  ]
+}

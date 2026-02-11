@@ -41,8 +41,11 @@ export interface ChainDBConfig {
 
 /**
  * Chain database instance with typed schema.
+ * Includes both Drizzle wrapper and underlying SQLite client.
  */
-export type ChainDB = BetterSQLite3Database<typeof schema>;
+export interface ChainDB extends BetterSQLite3Database<typeof schema> {
+  $client: Database.Database;
+}
 
 /**
  * Creates and initializes a chain database instance.
@@ -88,7 +91,10 @@ export function createChainDB(config: ChainDBConfig): ChainDB {
   configurePragmas(sqlite, enableWAL);
 
   // Create Drizzle instance with schema
-  const db = drizzle(sqlite, { schema });
+  const db = drizzle(sqlite, { schema }) as ChainDB;
+
+  // Attach SQLite client for direct access
+  db.$client = sqlite;
 
   // Run migrations if enabled
   if (runMigrations && path !== ':memory:') {

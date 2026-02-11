@@ -2,7 +2,6 @@
   "name": "@reloaded/storage",
   "version": "0.0.1",
   "description": "Persistence layer for RAILGUN Reloaded using Drizzle ORM with SQLite",
-  "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
@@ -21,17 +20,17 @@
   },
   "scripts": {
     "build": "tsc --build",
+    "build:tests": "tsc --project test/tsconfig.json",
     "clean": "tsc --build --clean",
     "lint": "eslint",
     "lint:fix": "eslint --fix",
-    "pretest": "npm run build",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "db:generate:chain": "drizzle-kit generate --config=drizzle.chain.config.ts",
-    "db:generate:wallet": "drizzle-kit generate --config=drizzle.wallet.config.ts",
+    "pretest": "npm run build && npm run build:tests",
+    "test": "NODE_OPTIONS=--enable-source-maps brittle test/*.js",
+    "db:generate:chain": "drizzle-kit generate --config=config/drizzle.chain.config.ts",
+    "db:generate:wallet": "drizzle-kit generate --config=config/drizzle.wallet.config.ts",
     "db:generate": "npm run db:generate:chain && npm run db:generate:wallet",
-    "db:studio:chain": "drizzle-kit studio --config=drizzle.chain.config.ts",
-    "db:studio:wallet": "drizzle-kit studio --config=drizzle.wallet.config.ts"
+    "db:studio:chain": "drizzle-kit studio --config=config/drizzle.chain.config.ts",
+    "db:studio:wallet": "drizzle-kit studio --config=config/drizzle.wallet.config.ts"
   },
   "keywords": [
     "railgun",
@@ -49,12 +48,12 @@
     "@railgun-reloaded/eslint-config": "^1.1.0",
     "@railgun-reloaded/tsconfig": "^1.2.0",
     "@types/better-sqlite3": "^7.6.12",
+    "@types/brittle": "^3.5.0",
     "@types/node": "^24.0.3",
+    "brittle": "^3.19.1",
     "drizzle-kit": "^0.29.1",
-    "typescript": "^5.8.3",
-    "vitest": "^2.1.8"
+    "typescript": "^5.8.3"
   },
-  "peerDependencies": {},
   "engines": {
     "node": ">=20.0.0"
   }

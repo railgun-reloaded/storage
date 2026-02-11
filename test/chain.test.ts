@@ -1,11 +1,11 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { test } from 'brittle';
 import {
   createTestChainDB,
   createTestNullifier,
   createTestMerkleNode,
   createTestCommitment,
   resetTestCounters,
-} from './setup';
+} from './utils';
 import {
   insertNullifiersBatch,
   nullifierExists,
@@ -20,191 +20,177 @@ import {
   getChainDBStats,
 } from '../src/chain/index';
 
-describe('Chain Database', () => {
-  beforeEach(() => {
-    resetTestCounters();
+test('Chain Database - Nullifiers: insert and check existence', (t) => {
+  resetTestCounters();
+  const db = createTestChainDB();
+  const nullifier = createTestNullifier();
+
+  insertNullifiersBatch(db, [nullifier]);
+
+  t.is(nullifierExists(db, nullifier.nullifier), true);
+  t.is(nullifierExists(db, '0xnonexistent'), false);
+});
+
+test('Chain Database - Nullifiers: batch insert', (t) => {
+  resetTestCounters();
+  const db = createTestChainDB();
+  const nullifiers = [
+    createTestNullifier(),
+    createTestNullifier(),
+    createTestNullifier(),
+  ];
+
+  const count = insertNullifiersBatch(db, nullifiers);
+
+  t.is(count, 3);
+  nullifiers.forEach((n) => {
+    t.is(nullifierExists(db, n.nullifier), true);
   });
+});
 
-  describe('Nullifiers', () => {
-    it('should insert and check nullifier existence', () => {
-      const db = createTestChainDB();
-      const nullifier = createTestNullifier();
+test('Chain Database - Nullifiers: handle duplicates (idempotent)', (t) => {
+  resetTestCounters();
+  const db = createTestChainDB();
+  const nullifier = createTestNullifier();
 
-      insertNullifiersBatch(db, [nullifier]);
+  const count1 = insertNullifiersBatch(db, [nullifier]);
+  const count2 = insertNullifiersBatch(db, [nullifier]);
 
-      expect(nullifierExists(db, nullifier.nullifier)).toBe(true);
-      expect(nullifierExists(db, '0xnonexistent')).toBe(false);
-    });
+  t.is(count1, 1);
+  t.is(count2, 0); // Duplicate ignored
+});
 
-    it('should batch insert nullifiers', () => {
-      const db = createTestChainDB();
-      const nullifiers = [
-        createTestNullifier(),
-        createTestNullifier(),
-        createTestNullifier(),
-      ];
+test('Chain Database - Nullifiers: delete from block (reorg)', (t) => {
+  resetTestCounters();
+  const db = createTestChainDB();
+  const nullifiers = [
+    createTestNullifier({ blockNumber: 100n }),
+    createTestNullifier({ blockNumber: 101n }),
+    createTestNullifier({ blockNumber: 102n }),
+  ];
 
-      const count = insertNullifiersBatch(db, nullifiers);
+  insertNullifiersBatch(db, nullifiers);
 
-      expect(count).toBe(3);
-      nullifiers.forEach((n) => {
-        expect(nullifierExists(db, n.nullifier)).toBe(true);
-      });
-    });
+  const deleted = deleteNullifiersFromBlock(db, 101n);
 
-    it('should handle duplicate nullifiers (idempotent)', () => {
-      const db = createTestChainDB();
-      const nullifier = createTestNullifier();
+  t.is(deleted, 2);
+  t.is(nullifierExists(db, nullifiers[0]!.nullifier), true);
+  t.is(nullifierExists(db, nullifiers[1]!.nullifier), false);
+  t.is(nullifierExists(db, nullifiers[2]!.nullifier), false);
+});
 
-      const count1 = insertNullifiersBatch(db, [nullifier]);
-      const count2 = insertNullifiersBatch(db, [nullifier]);
+test('Chain Database - Merkle Nodes: insert and retrieve', (t) => {
+  resetTestCounters();
+  const db = createTestChainDB();
+  const node = createTestMerkleNode({ treeId: 0, level: 1, index: 5n });
 
-      expect(count1).toBe(1);
-      expect(count2).toBe(0); // Duplicate ignored
-    });
+  insertMerkleNodesBatch(db, [node]);
 
-    it('should delete nullifiers from block (reorg)', () => {
-      const db = createTestChainDB();
-      const nullifiers = [
-        createTestNullifier({ blockNumber: 100n }),
-        createTestNullifier({ blockNumber: 101n }),
-        createTestNullifier({ blockNumber: 102n }),
-      ];
+  const retrieved = getMerkleNode(db, 0, 1, 5n);
 
-      insertNullifiersBatch(db, nullifiers);
+  t.ok(retrieved);
+  t.alike(retrieved?.hash, node.hash);
+});
 
-      const deleted = deleteNullifiersFromBlock(db, 101n);
+test('Chain Database - Merkle Nodes: batch insert', (t) => {
+  resetTestCounters();
+  const db = createTestChainDB();
+  const nodes = [
+    createTestMerkleNode({ level: 0, index: 0n }),
+    createTestMerkleNode({ level: 0, index: 1n }),
+    createTestMerkleNode({ level: 1, index: 0n }),
+  ];
 
-      expect(deleted).toBe(2);
-      expect(nullifierExists(db, nullifiers[0].nullifier)).toBe(true);
-      expect(nullifierExists(db, nullifiers[1].nullifier)).toBe(false);
-      expect(nullifierExists(db, nullifiers[2].nullifier)).toBe(false);
-    });
-  });
+  const count = insertMerkleNodesBatch(db, nodes);
 
-  describe('Merkle Nodes', () => {
-    it('should insert and retrieve merkle node', () => {
-      const db = createTestChainDB();
-      const node = createTestMerkleNode({ treeId: 0, level: 1, index: 5n });
+  t.is(count, 3);
+});
 
-      insertMerkleNodesBatch(db, [node]);
+test('Chain Database - Merkle Nodes: get sibling path', (t) => {
+  resetTestCounters();
+  const db = createTestChainDB();
+  const depth = 4;
 
-      const retrieved = getMerkleNode(db, 0, 1, 5n);
+  const nodes = [
+    createTestMerkleNode({ level: 0, index: 4n, hash: Buffer.from('04'.repeat(32), 'hex') }),
+    createTestMerkleNode({ level: 0, index: 5n, hash: Buffer.from('05'.repeat(32), 'hex') }),
+    createTestMerkleNode({ level: 1, index: 2n, hash: Buffer.from('12'.repeat(32), 'hex') }),
+    createTestMerkleNode({ level: 1, index: 3n, hash: Buffer.from('13'.repeat(32), 'hex') }),
+    createTestMerkleNode({ level: 2, index: 0n, hash: Buffer.from('20'.repeat(32), 'hex') }),
+    createTestMerkleNode({ level: 2, index: 1n, hash: Buffer.from('21'.repeat(32), 'hex') }),
+    createTestMerkleNode({ level: 3, index: 1n, hash: Buffer.from('31'.repeat(32), 'hex') }),
+  ];
 
-      expect(retrieved).toBeDefined();
-      expect(retrieved?.hash).toEqual(node.hash);
-    });
+  insertMerkleNodesBatch(db, nodes);
 
-    it('should batch insert merkle nodes', () => {
-      const db = createTestChainDB();
-      const nodes = [
-        createTestMerkleNode({ level: 0, index: 0n }),
-        createTestMerkleNode({ level: 0, index: 1n }),
-        createTestMerkleNode({ level: 1, index: 0n }),
-      ];
+  const siblings = getMerkleSiblingPath(db, 0, 5n, depth);
 
-      const count = insertMerkleNodesBatch(db, nodes);
+  t.is(siblings.length, depth);
+  t.alike(siblings[0], Buffer.from('04'.repeat(32), 'hex'));
+  t.alike(siblings[1], Buffer.from('13'.repeat(32), 'hex'));
+  t.alike(siblings[2], Buffer.from('20'.repeat(32), 'hex'));
+  t.alike(siblings[3], Buffer.from('31'.repeat(32), 'hex'));
+});
 
-      expect(count).toBe(3);
-    });
+test('Chain Database - Commitments: insert and query', (t) => {
+  resetTestCounters();
+  const db = createTestChainDB();
+  const commitments = [
+    createTestCommitment({ leafIndex: 10n }),
+    createTestCommitment({ leafIndex: 11n }),
+    createTestCommitment({ leafIndex: 12n }),
+  ];
 
-    it('should get merkle sibling path', () => {
-      const db = createTestChainDB();
-      const depth = 4;
+  insertCommitmentsBatch(db, commitments);
 
-      // Create a small tree: depth 4, leafIndex 5
-      // Path: 5 -> 2 -> 1 -> 0
-      // Siblings: 4, 3, 0, 1
-      const nodes = [
-        // Level 0 (leaves)
-        createTestMerkleNode({ level: 0, index: 4n, hash: Buffer.from('04'.repeat(32), 'hex') }),
-        createTestMerkleNode({ level: 0, index: 5n, hash: Buffer.from('05'.repeat(32), 'hex') }),
-        // Level 1
-        createTestMerkleNode({ level: 1, index: 2n, hash: Buffer.from('12'.repeat(32), 'hex') }),
-        createTestMerkleNode({ level: 1, index: 3n, hash: Buffer.from('13'.repeat(32), 'hex') }),
-        // Level 2
-        createTestMerkleNode({ level: 2, index: 0n, hash: Buffer.from('20'.repeat(32), 'hex') }),
-        createTestMerkleNode({ level: 2, index: 1n, hash: Buffer.from('21'.repeat(32), 'hex') }),
-        // Level 3
-        createTestMerkleNode({ level: 3, index: 1n, hash: Buffer.from('31'.repeat(32), 'hex') }),
-      ];
+  const range = getCommitmentsByLeafRange(db, 0, 10n, 11n);
 
-      insertMerkleNodesBatch(db, nodes);
+  t.is(range.length, 2);
+  t.is(range[0]!.leafIndex, 10n);
+  t.is(range[1]!.leafIndex, 11n);
+});
 
-      const siblings = getMerkleSiblingPath(db, 0, 5n, depth);
+test('Chain Database - Commitments: handle empty batch', (t) => {
+  const db = createTestChainDB();
 
-      expect(siblings.length).toBe(depth);
-      expect(siblings[0]).toEqual(Buffer.from('04'.repeat(32), 'hex')); // Sibling at level 0
-      expect(siblings[1]).toEqual(Buffer.from('13'.repeat(32), 'hex')); // Sibling at level 1
-      expect(siblings[2]).toEqual(Buffer.from('20'.repeat(32), 'hex')); // Sibling at level 2
-      expect(siblings[3]).toEqual(Buffer.from('31'.repeat(32), 'hex')); // Sibling at level 3
-    });
-  });
+  const count = insertCommitmentsBatch(db, []);
 
-  describe('Commitments', () => {
-    it('should insert and query commitments', () => {
-      const db = createTestChainDB();
-      const commitments = [
-        createTestCommitment({ leafIndex: 10n }),
-        createTestCommitment({ leafIndex: 11n }),
-        createTestCommitment({ leafIndex: 12n }),
-      ];
+  t.is(count, 0);
+});
 
-      insertCommitmentsBatch(db, commitments);
+test('Chain Database - Sync State: set and get', (t) => {
+  const db = createTestChainDB();
 
-      const range = getCommitmentsByLeafRange(db, 0, 10n, 11n);
+  updateSyncState(db, 1, 1000n);
 
-      expect(range.length).toBe(2);
-      expect(range[0].leafIndex).toBe(10n);
-      expect(range[1].leafIndex).toBe(11n);
-    });
+  const state = getSyncState(db, 1);
 
-    it('should handle empty batch', () => {
-      const db = createTestChainDB();
+  t.ok(state);
+  t.is(state?.lastBlock, 1000n);
+});
 
-      const count = insertCommitmentsBatch(db, []);
+test('Chain Database - Sync State: update existing', (t) => {
+  const db = createTestChainDB();
 
-      expect(count).toBe(0);
-    });
-  });
+  updateSyncState(db, 1, 1000n);
+  updateSyncState(db, 1, 2000n);
 
-  describe('Sync State', () => {
-    it('should set and get sync state', () => {
-      const db = createTestChainDB();
+  const state = getSyncState(db, 1);
 
-      updateSyncState(db, 1, 1000n);
+  t.is(state?.lastBlock, 2000n);
+});
 
-      const state = getSyncState(db, 1);
+test('Chain Database - Stats: return correct counts', (t) => {
+  resetTestCounters();
+  const db = createTestChainDB();
 
-      expect(state).toBeDefined();
-      expect(state?.lastBlock).toBe(1000n);
-    });
+  insertNullifiersBatch(db, [createTestNullifier(), createTestNullifier()]);
+  insertMerkleNodesBatch(db, [createTestMerkleNode()]);
+  insertCommitmentsBatch(db, [createTestCommitment()]);
 
-    it('should update existing sync state', () => {
-      const db = createTestChainDB();
+  const stats = getChainDBStats(db);
 
-      updateSyncState(db, 1, 1000n);
-      updateSyncState(db, 1, 2000n);
-
-      const state = getSyncState(db, 1);
-
-      expect(state?.lastBlock).toBe(2000n);
-    });
-  });
-
-  describe('Database Stats', () => {
-    it('should return correct stats', () => {
-      const db = createTestChainDB();
-
-      insertNullifiersBatch(db, [createTestNullifier(), createTestNullifier()]);
-      insertMerkleNodesBatch(db, [createTestMerkleNode()]);
-      insertCommitmentsBatch(db, [createTestCommitment()]);
-
-      const stats = getChainDBStats(db);
-
-      expect(stats.nullifiers).toBe(2);
-      expect(stats.merkleNodes).toBe(1);
-      expect(stats.commitments).toBe(1);
-    });
-  });
+  t.is(stats.nullifiers, 2);
+  t.is(stats.merkleNodes, 1);
+  t.is(stats.commitments, 1);
 });

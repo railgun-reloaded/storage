@@ -1,5 +1,21 @@
-import { sqliteTable, text, integer, blob, index, primaryKey } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, integer, blob, index, primaryKey, customType } from 'drizzle-orm/sqlite-core';
 import { sql } from 'drizzle-orm';
+
+/**
+ * Custom bigint column type for SQLite.
+ * Stores as TEXT in SQLite, converts to/from BigInt in JavaScript.
+ */
+const bigint = customType<{ data: bigint; driverData: string }>({
+  dataType() {
+    return 'text';
+  },
+  toDriver(value: bigint): string {
+    return value.toString();
+  },
+  fromDriver(value: string): bigint {
+    return BigInt(value);
+  },
+});
 
 /**
  * Nullifiers table - tracks spent notes in the RAILGUN privacy system.
@@ -18,7 +34,7 @@ export const nullifiers = sqliteTable(
     txid: text('txid').notNull(),
 
     /** Block number where this nullifier was included */
-    blockNumber: text('block_number', { mode: 'bigint' }).notNull(),
+    blockNumber: bigint('block_number').notNull(),
 
     /** Merkle tree ID (0, 1, 2, ...) */
     treeId: integer('tree_id').notNull(),
@@ -58,7 +74,7 @@ export const merkleNodes = sqliteTable(
     level: integer('level').notNull(),
 
     /** Position at this level (0-indexed) */
-    index: text('index', { mode: 'bigint' }).notNull(),
+    index: bigint('index').notNull(),
 
     /** 32-byte node hash */
     hash: blob('hash', { mode: 'buffer' }).notNull(),
@@ -95,10 +111,10 @@ export const commitments = sqliteTable(
     treeId: integer('tree_id').notNull(),
 
     /** Leaf index in the merkle tree */
-    leafIndex: text('leaf_index', { mode: 'bigint' }).notNull(),
+    leafIndex: bigint('leaf_index').notNull(),
 
     /** Block number where this commitment was created */
-    blockNumber: text('block_number', { mode: 'bigint' }).notNull(),
+    blockNumber: bigint('block_number').notNull(),
 
     /** Transaction hash where this commitment was published */
     txid: text('txid').notNull(),
@@ -130,7 +146,7 @@ export const merkleRoots = sqliteTable(
     treeId: integer('tree_id').notNull(),
 
     /** Block number when this root was current */
-    blockNumber: text('block_number', { mode: 'bigint' }).notNull(),
+    blockNumber: bigint('block_number').notNull(),
 
     /** 32-byte root hash */
     root: blob('root', { mode: 'buffer' }).notNull(),
@@ -159,7 +175,7 @@ export const syncState = sqliteTable(
     chainId: integer('chain_id').primaryKey().notNull(),
 
     /** Last fully indexed block number */
-    lastBlock: text('last_block', { mode: 'bigint' }).notNull(),
+    lastBlock: bigint('last_block').notNull(),
 
     /** Last update timestamp */
     updatedAt: integer('updated_at', { mode: 'timestamp' })

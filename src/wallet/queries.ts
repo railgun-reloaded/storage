@@ -8,8 +8,6 @@ import {
   txHistory,
   type NewWallet,
   type NewNote,
-  type NewBalance,
-  type NewScanState,
   type NewTxHistory,
 } from './schema';
 
