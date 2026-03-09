@@ -17,27 +17,29 @@ export interface ChainDB extends BetterSQLite3Database<typeof schema> {
   $client: Database.Database;
 }
 
+const DEFAULT_MIGRATION_FOLDER = './drizzle/chain'
 export function createChainDB (config: ChainDBConfig): ChainDB {
   const {
     path,
-    enableWAL = path !== ':memory:',
-    runMigrations = true,
-    migrationsFolder = './drizzle/chain',
-    verbose = false,
+    enableWAL,
+    runMigrations,
+    migrationsFolder,
+    verbose,
   } = config
 
   const sqlite = new Database(path, {
     verbose: verbose ? console.log : undefined,
   })
 
-  configurePragmas(sqlite, enableWAL)
+  configurePragmas(sqlite, enableWAL || false)
 
   const db = drizzle(sqlite, { schema }) as ChainDB
   db.$client = sqlite
 
-  if (runMigrations && path !== ':memory:') {
+  if (runMigrations) {
     try {
-      migrate(db, { migrationsFolder })
+      const migrationFilePath = migrationsFolder ?? DEFAULT_MIGRATION_FOLDER
+      migrate(db, { migrationsFolder: migrationFilePath })
       if (verbose) {
         console.log(`Chain database migrations applied: ${path}`)
       }

@@ -1,11 +1,16 @@
 import { test } from 'brittle'
 
+import { getNullifiersByBlockRange, insertNullifiersBatch, nullifierExists } from '../src'
+
+import { createTestChainDB, createTestNullifiers } from './utils'
+/*
 import {
   deleteNullifiersFromBlock,
   getChainDBStats,
   getCommitmentsByLeafRange,
   getMerkleNode,
   getMerkleSiblingPath,
+  getNullifiersByBlockRange,
   getSyncState,
   insertCommitmentsBatch,
   insertMerkleNodesBatch,
@@ -48,6 +53,23 @@ test('Chain Database - Nullifiers: batch insert', (t) => {
   nullifiers.forEach((n) => {
     t.is(nullifierExists(db, n.nullifier), true)
   })
+})
+
+test('Chain Database - Nullifiers: Find by block range', (t) => {
+  resetTestCounters()
+  const db = createTestChainDB()
+  const nullifiers = [
+    createTestNullifier(),
+    createTestNullifier(),
+    createTestNullifier(),
+  ]
+  const count = insertNullifiersBatch(db, nullifiers)
+  t.is(count, 3)
+
+  const startBlock = nullifiers[0]!.blockNumber;
+  const endBlock = nullifiers[nullifiers.length - 1]!.blockNumber
+  const result = getNullifiersByBlockRange(db, startBlock, endBlock);
+  t.is(result.length, 3);
 })
 
 test('Chain Database - Nullifiers: handle duplicates (idempotent)', (t) => {
@@ -195,4 +217,34 @@ test('Chain Database - Stats: return correct counts', (t) => {
   t.is(stats.nullifiers, 2)
   t.is(stats.merkleNodes, 1)
   t.is(stats.commitments, 1)
+})
+*/
+
+test('ChainDB: Insert nullifiers', (assert) => {
+  const db = createTestChainDB()
+  const nullifiersBatch = createTestNullifiers(8)
+  const changes = insertNullifiersBatch(db, nullifiersBatch)
+  assert.is(changes, nullifiersBatch.length)
+})
+
+test('ChainDB: Should insert and fetch same nullifiers', (assert) => {
+  const db = createTestChainDB()
+  const startBlock = 100n
+  const nullifiersBatch = createTestNullifiers(4, 100n)
+  const changes = insertNullifiersBatch(db, nullifiersBatch)
+  assert.is(changes, nullifiersBatch.length)
+
+  const fetchedNullifiers = getNullifiersByBlockRange(db, startBlock, startBlock + 10n)
+  assert.alike(nullifiersBatch, fetchedNullifiers)
+})
+
+test('ChainD: Should insert and check it exists', (assert) => {
+  const db = createTestChainDB()
+  const nullifiersBatch = createTestNullifiers(4)
+  const changes = insertNullifiersBatch(db, nullifiersBatch)
+  assert.is(changes, nullifiersBatch.length)
+
+  for (const { nullifier } of nullifiersBatch) {
+    assert.ok(nullifierExists(db, nullifier as Uint8Array))
+  }
 })

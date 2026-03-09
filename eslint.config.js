@@ -1,6 +1,6 @@
 module.exports = [
   {
-    ignores: ['dist/**', 'test/**', 'drizzle/**', 'config/**']
+    ignores: ['dist/**', 'drizzle/**', 'config/**']
   },
   ...require('@railgun-reloaded/eslint-config')(),
   {
