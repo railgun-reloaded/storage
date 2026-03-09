@@ -6,10 +6,10 @@ const bigint = customType<{ data: bigint; driverData: string }>({
     return 'text'
   },
   toDriver (value: bigint): string {
-    return value.toString()
+    return value.toString(16).padStart(64, '0')
   },
   fromDriver (value: string): bigint {
-    return BigInt(value)
+    return BigInt(`0x${value}`)
   },
 })
 
@@ -84,7 +84,7 @@ export const unshieldsRelation = relations(unshields, ({ one }) => ({
 export const merkleTrees = sqliteTable(
   'merkle_trees',
   {
-    treeNumber: integer('treeNumber').notNull(),
+    treeNumber: integer('treeNumber').primaryKey().notNull(),
     leaves: blob('leaves').notNull(),
     // We need to keep track of this to make sure we append at proper place, when new leaf is added
     leafCount: integer('leafCount').notNull()
@@ -92,7 +92,7 @@ export const merkleTrees = sqliteTable(
   (table) => ({
     // Total memory for leaves (bytes)= 65536 * 32 //
     leavesSizeCheck: check('hashes_size_check', sql`length(${table.leaves}) = 2097152`),
-    leafCountCheck: check('leaf_count_check', sql`${table.leafCount} < 65536`)
+    leafCountCheck: check('leaf_count_check', sql`${table.leafCount} <= 65536`)
   })
 )
 

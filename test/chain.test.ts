@@ -1,8 +1,8 @@
 import { test } from 'brittle'
 
-import { getNullifiersByBlockRange, insertNullifiersBatch, nullifierExists } from '../src'
+import { deleteNullifiersFromBlock, getNullifiersByBlockRange, insertNullifiersBatch, nullifierExists, setMerkleTree } from '../src'
 
-import { createTestChainDB, createTestNullifiers } from './utils'
+import { createTestChainDB, createTestMerkleTreeLeaves, createTestNullifiers } from './utils'
 /*
 import {
   deleteNullifiersFromBlock,
@@ -26,82 +26,6 @@ import {
   createTestNullifier,
   resetTestCounters,
 } from './utils'
-
-test('Chain Database - Nullifiers: insert and check existence', (t) => {
-  resetTestCounters()
-  const db = createTestChainDB()
-  const nullifier = createTestNullifier()
-
-  insertNullifiersBatch(db, [nullifier])
-
-  t.is(nullifierExists(db, nullifier.nullifier), true)
-  t.is(nullifierExists(db, '0xnonexistent'), false)
-})
-
-test('Chain Database - Nullifiers: batch insert', (t) => {
-  resetTestCounters()
-  const db = createTestChainDB()
-  const nullifiers = [
-    createTestNullifier(),
-    createTestNullifier(),
-    createTestNullifier(),
-  ]
-
-  const count = insertNullifiersBatch(db, nullifiers)
-
-  t.is(count, 3)
-  nullifiers.forEach((n) => {
-    t.is(nullifierExists(db, n.nullifier), true)
-  })
-})
-
-test('Chain Database - Nullifiers: Find by block range', (t) => {
-  resetTestCounters()
-  const db = createTestChainDB()
-  const nullifiers = [
-    createTestNullifier(),
-    createTestNullifier(),
-    createTestNullifier(),
-  ]
-  const count = insertNullifiersBatch(db, nullifiers)
-  t.is(count, 3)
-
-  const startBlock = nullifiers[0]!.blockNumber;
-  const endBlock = nullifiers[nullifiers.length - 1]!.blockNumber
-  const result = getNullifiersByBlockRange(db, startBlock, endBlock);
-  t.is(result.length, 3);
-})
-
-test('Chain Database - Nullifiers: handle duplicates (idempotent)', (t) => {
-  resetTestCounters()
-  const db = createTestChainDB()
-  const nullifier = createTestNullifier()
-
-  const count1 = insertNullifiersBatch(db, [nullifier])
-  const count2 = insertNullifiersBatch(db, [nullifier])
-
-  t.is(count1, 1)
-  t.is(count2, 0) // Duplicate ignored
-})
-
-test('Chain Database - Nullifiers: delete from block (reorg)', (t) => {
-  resetTestCounters()
-  const db = createTestChainDB()
-  const nullifiers = [
-    createTestNullifier({ blockNumber: 100n }),
-    createTestNullifier({ blockNumber: 101n }),
-    createTestNullifier({ blockNumber: 102n }),
-  ]
-
-  insertNullifiersBatch(db, nullifiers)
-
-  const deleted = deleteNullifiersFromBlock(db, 101n)
-
-  t.is(deleted, 2)
-  t.is(nullifierExists(db, nullifiers[0]!.nullifier), true)
-  t.is(nullifierExists(db, nullifiers[1]!.nullifier), false)
-  t.is(nullifierExists(db, nullifiers[2]!.nullifier), false)
-})
 
 test('Chain Database - Merkle Nodes: insert and retrieve', (t) => {
   resetTestCounters()
@@ -238,7 +162,7 @@ test('ChainDB: Should insert and fetch same nullifiers', (assert) => {
   assert.alike(nullifiersBatch, fetchedNullifiers)
 })
 
-test('ChainD: Should insert and check it exists', (assert) => {
+test('ChainDB: Should insert and check it exists', (assert) => {
   const db = createTestChainDB()
   const nullifiersBatch = createTestNullifiers(4)
   const changes = insertNullifiersBatch(db, nullifiersBatch)
@@ -247,4 +171,102 @@ test('ChainD: Should insert and check it exists', (assert) => {
   for (const { nullifier } of nullifiersBatch) {
     assert.ok(nullifierExists(db, nullifier as Uint8Array))
   }
+})
+
+test('ChainDB: Should insert invalid nullifier', (assert) => {
+  const db = createTestChainDB()
+  const nullifier = new Uint8Array(64)
+  const nullifierEntry = {
+    nullifier,
+    blockNumber: 100n,
+    transactionHash: new Uint8Array([0, 0]),
+    treeNumber: 0
+  }
+
+  assert.exception(async () => {
+    insertNullifiersBatch(db, [nullifierEntry])
+  })
+})
+
+test('ChainDB: Should fetch nullifier by block range', (assert) => {
+  const db = createTestChainDB()
+  const startBlock = 1000n
+  const nullifiersBatch = createTestNullifiers(4, 1000n)
+  const changes = insertNullifiersBatch(db, nullifiersBatch)
+
+  assert.is(changes, nullifiersBatch.length)
+  const fetchedNullifiers = getNullifiersByBlockRange(db, startBlock, startBlock + 10n)
+  assert.alike(nullifiersBatch, fetchedNullifiers)
+})
+
+test('ChainDB: Should handle duplicate nullifiers id', (assert) => {
+  const db = createTestChainDB()
+  const nullifiersBatch = createTestNullifiers(2, 100n)
+  let changes = insertNullifiersBatch(db, nullifiersBatch)
+  assert.is(changes, 2)
+
+  nullifiersBatch.forEach((b, index) => { b.blockNumber = 1000n + BigInt(index) })
+  changes = insertNullifiersBatch(db, nullifiersBatch)
+  assert.is(changes, 2)
+
+  const nullifiers = getNullifiersByBlockRange(db, 1000n, 1011n)
+  assert.ok(nullifiers)
+  assert.is(nullifiers.length, nullifiersBatch.length)
+
+  for (let i = 0; i < nullifiersBatch.length; ++i) {
+    assert.alike(nullifiers[i]!.nullifier as Uint8Array, nullifiersBatch[i]?.nullifier)
+    assert.alike(nullifiers[i]!.transactionHash as Uint8Array, nullifiersBatch[i]?.transactionHash)
+    assert.is(nullifiers[i]!.treeNumber, nullifiersBatch[i]?.treeNumber)
+  }
+})
+
+test('ChainDB: Should delete nullifier greater than given block', (assert) => {
+  const db = createTestChainDB()
+  const nullifiers = createTestNullifiers(1)
+  const changes = insertNullifiersBatch(db, nullifiers)
+  assert.is(changes, 1)
+
+  let exists = nullifierExists(db, nullifiers[0]!.nullifier as Uint8Array)
+  assert.is(exists, true)
+
+  const deleted = deleteNullifiersFromBlock(db, nullifiers[0]!.blockNumber)
+  assert.is(deleted, 1)
+
+  exists = nullifierExists(db, nullifiers[0]!.nullifier as Uint8Array)
+  assert.is(exists, false)
+})
+
+test('ChainDB: Should insert merkletree', (assert) => {
+  const db = createTestChainDB()
+  const leaves = createTestMerkleTreeLeaves()
+  const changes = setMerkleTree(db, {
+    treeNumber: 0,
+    leaves,
+    leafCount: 65536
+  })
+  assert.is(changes, 1)
+})
+
+test('ChainDB: Should throw on invalid merkletree insert', (assert) => {
+  const db = createTestChainDB()
+  const leaves = new Uint8Array(32)
+  assert.exception(() => {
+    setMerkleTree(db, {
+      treeNumber: 0,
+      leaves,
+      leafCount: 1
+    })
+  })
+})
+
+test('ChainDB: Should throw on invalid merkletree leafCount', (assert) => {
+  const db = createTestChainDB()
+  const leaves = createTestMerkleTreeLeaves()
+  assert.exception(() => {
+    setMerkleTree(db, {
+      treeNumber: 0,
+      leaves,
+      leafCount: 65537
+    })
+  })
 })
