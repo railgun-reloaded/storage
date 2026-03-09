@@ -1,5 +1,5 @@
 {
-  "name": "@reloaded/storage",
+  "name": "@railgun-reloaded/storage",
   "version": "0.0.1",
   "description": "Persistence layer for RAILGUN Reloaded using Drizzle ORM with SQLite",
   "main": "./dist/index.js",
