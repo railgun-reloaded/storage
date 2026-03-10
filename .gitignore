@@ -5,8 +5,11 @@ node_modules
 test/**/*.js
 test/**/*.js.map
 test/**/*.d.ts
+test/**/*.d.ts.map
 
 src/**/*.js
+src/**/*.d.ts
+src/**/*.d.ts.map
 
 tsconfig.tsbuildinfo
 tsconfig.test.tsbuildinfo
