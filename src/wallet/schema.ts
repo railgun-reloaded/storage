@@ -13,6 +13,29 @@ const bigint = customType<{ data: bigint; driverData: string }>({
   },
 })
 
+// --- POI types ---
+
+export enum WalletBalanceBucket {
+  Spendable = 'Spendable',
+  ShieldBlocked = 'ShieldBlocked',
+  ShieldPending = 'ShieldPending',
+  ProofSubmitted = 'ProofSubmitted',
+  MissingInternalPOI = 'MissingInternalPOI',
+  MissingExternalPOI = 'MissingExternalPOI',
+  Spent = 'Spent',
+}
+
+export enum TXOPOIListStatus {
+  Valid = 'Valid',
+  ShieldBlocked = 'ShieldBlocked',
+  ProofSubmitted = 'ProofSubmitted',
+  Missing = 'Missing',
+}
+
+export type POIsPerList = Record<string, TXOPOIListStatus>
+
+// --- Tables ---
+
 export const wallets = sqliteTable('wallets', {
   id: text('id').primaryKey().notNull(),
   encryptedKeys: blob('encrypted_keys', { mode: 'buffer' }).notNull(),
@@ -37,6 +60,9 @@ export const notes = sqliteTable(
     blockNumber: bigint('block_number').notNull(),
     treeId: integer('tree_id').notNull(),
     leafIndex: bigint('leaf_index').notNull(),
+    commitmentType: text('commitment_type').notNull().default('TransactCommitmentV2'),
+    outputType: integer('output_type'),
+    poisPerList: text('pois_per_list', { mode: 'json' }).$type<POIsPerList>(),
     decryptedAt: integer('decrypted_at', { mode: 'timestamp' })
       .notNull()
       .default(sql`(unixepoch())`),
@@ -46,6 +72,33 @@ export const notes = sqliteTable(
     walletTokenIdx: index('notes_wallet_token_idx').on(table.walletId, table.token),
     nullifierIdx: index('notes_nullifier_idx').on(table.nullifier),
     treeLeafIdx: index('notes_tree_leaf_idx').on(table.treeId, table.leafIndex),
+  })
+)
+
+export const sentNotes = sqliteTable(
+  'sent_notes',
+  {
+    commitment: text('commitment').primaryKey().notNull(),
+    walletId: text('wallet_id')
+      .notNull()
+      .references(() => wallets.id, { onDelete: 'cascade' }),
+    txid: text('txid').notNull(),
+    token: text('token').notNull(),
+    amount: bigint('amount').notNull(),
+    outputType: integer('output_type'),
+    walletSource: text('wallet_source'),
+    recipientAddress: text('recipient_address').notNull(),
+    commitmentType: text('commitment_type').notNull(),
+    blockNumber: bigint('block_number').notNull(),
+    treeId: integer('tree_id').notNull(),
+    leafIndex: bigint('leaf_index').notNull(),
+    createdAt: integer('created_at', { mode: 'timestamp' })
+      .notNull()
+      .default(sql`(unixepoch())`),
+  },
+  (table) => ({
+    walletIdx: index('sent_notes_wallet_idx').on(table.walletId),
+    txidIdx: index('sent_notes_txid_idx').on(table.txid),
   })
 )
 
@@ -110,9 +163,11 @@ export type Note = typeof notes.$inferSelect
 export type Balance = typeof balances.$inferSelect
 export type ScanState = typeof scanState.$inferSelect
 export type TxHistory = typeof txHistory.$inferSelect
+export type SentNote = typeof sentNotes.$inferSelect
 
 export type NewWallet = typeof wallets.$inferInsert
 export type NewNote = typeof notes.$inferInsert
 export type NewBalance = typeof balances.$inferInsert
 export type NewScanState = typeof scanState.$inferInsert
 export type NewTxHistory = typeof txHistory.$inferInsert
+export type NewSentNote = typeof sentNotes.$inferInsert
