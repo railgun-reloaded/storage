@@ -1,17 +1,20 @@
 import { and, eq, inArray, sql } from 'drizzle-orm'
 
 import type { WalletDB } from './db'
-import type { NewNote, NewTxHistory, NewWallet } from './schema'
+import type { NewNote, NewSentNote, NewTxHistory, NewWallet, Note, POIsPerList } from './schema'
 import {
+  TXOPOIListStatus,
+  WalletBalanceBucket,
   balances,
   notes,
   scanState,
+  sentNotes,
   txHistory,
   wallets
 } from './schema'
 
 export function createWallet (db: WalletDB, wallet: NewWallet): string {
-  db.insert(wallets).values(wallet).run()
+  db.insert(wallets).values(wallet).onConflictDoNothing().run()
   return wallet.id
 }
 
@@ -118,22 +121,38 @@ export function getAllNotes (db: WalletDB, walletId: string) {
 export function recalculateBalance (
   db: WalletDB,
   walletId: string,
-  token: string
+  token: string,
+  balanceBucketFilter?: WalletBalanceBucket[],
+  activePOIListKeys?: string[]
 ): bigint {
   return db.transaction(() => {
-    const result = db
-      .select({ total: sql<string>`COALESCE(SUM(${notes.amount}), '0')` })
-      .from(notes)
-      .where(
-        and(
-          eq(notes.walletId, walletId),
-          eq(notes.token, token),
-          eq(notes.spent, false)
-        )
-      )
-      .get()
+    let amount: bigint
 
-    const amount = BigInt(result?.total ?? '0')
+    if (balanceBucketFilter && balanceBucketFilter.length > 0) {
+      const allNotes = db
+        .select()
+        .from(notes)
+        .where(and(eq(notes.walletId, walletId), eq(notes.token, token)))
+        .all()
+
+      amount = allNotes
+        .filter((note) => balanceBucketFilter.includes(getBalanceBucket(note, activePOIListKeys ?? [])))
+        .reduce((sum, note) => sum + note.amount, 0n)
+    } else {
+      const result = db
+        .select({ total: sql<string>`COALESCE(SUM(${notes.amount}), '0')` })
+        .from(notes)
+        .where(
+          and(
+            eq(notes.walletId, walletId),
+            eq(notes.token, token),
+            eq(notes.spent, false)
+          )
+        )
+        .get()
+
+      amount = BigInt(result?.total ?? '0')
+    }
 
     db.insert(balances)
       .values({ walletId, token, amount })
@@ -159,7 +178,12 @@ export function getAllBalances (db: WalletDB, walletId: string) {
   return db.select().from(balances).where(eq(balances.walletId, walletId)).all()
 }
 
-export function recalculateAllBalances (db: WalletDB, walletId: string): void {
+export function recalculateAllBalances (
+  db: WalletDB,
+  walletId: string,
+  balanceBucketFilter?: WalletBalanceBucket[],
+  activePOIListKeys?: string[]
+): void {
   db.transaction(() => {
     const tokens = db
       .select({ token: notes.token })
@@ -169,7 +193,7 @@ export function recalculateAllBalances (db: WalletDB, walletId: string): void {
       .all()
 
     for (const { token } of tokens) {
-      recalculateBalance(db, walletId, token)
+      recalculateBalance(db, walletId, token, balanceBucketFilter, activePOIListKeys)
     }
   })
 }
@@ -229,6 +253,63 @@ export function getTxHistory (db: WalletDB, walletId: string, limit: number = 10
 
 export function getTxById (db: WalletDB, txId: string) {
   return db.select().from(txHistory).where(eq(txHistory.id, txId)).get()
+}
+
+export function insertSentNotesBatch (db: WalletDB, noteList: NewSentNote[]): number {
+  if (noteList.length === 0) return 0
+
+  return db.transaction(() => {
+    const result = db
+      .insert(sentNotes)
+      .values(noteList)
+      .onConflictDoNothing()
+      .run()
+
+    return result.changes
+  })
+}
+
+export function getSentNotes (db: WalletDB, walletId: string) {
+  return db.select().from(sentNotes).where(eq(sentNotes.walletId, walletId)).all()
+}
+
+const SHIELD_COMMITMENT_TYPES = new Set(['ShieldCommitment', 'GeneratedCommitment', 'LegacyGeneratedCommitment'])
+
+export function getBalanceBucket (
+  note: Note,
+  activePOIListKeys: string[]
+): WalletBalanceBucket {
+  if (note.spent) {
+    return WalletBalanceBucket.Spent
+  }
+
+  if (activePOIListKeys.length === 0) {
+    return WalletBalanceBucket.Spendable
+  }
+
+  const pois = note.poisPerList as POIsPerList | null
+  const isShieldCommitment = SHIELD_COMMITMENT_TYPES.has(note.commitmentType)
+  const isChangeOutput = note.outputType === 2
+
+  if (!pois || activePOIListKeys.some((k) => !(k in pois))) {
+    if (isShieldCommitment) return WalletBalanceBucket.ShieldPending
+    return isChangeOutput ? WalletBalanceBucket.MissingInternalPOI : WalletBalanceBucket.MissingExternalPOI
+  }
+
+  const allValid = activePOIListKeys.every((k) => pois[k] === TXOPOIListStatus.Valid)
+  if (allValid) return WalletBalanceBucket.Spendable
+
+  if (activePOIListKeys.some((k) => pois[k] === TXOPOIListStatus.ShieldBlocked)) {
+    return WalletBalanceBucket.ShieldBlocked
+  }
+
+  if (isShieldCommitment) return WalletBalanceBucket.ShieldPending
+
+  if (activePOIListKeys.some((k) => pois[k] === TXOPOIListStatus.ProofSubmitted)) {
+    return WalletBalanceBucket.ProofSubmitted
+  }
+
+  return isChangeOutput ? WalletBalanceBucket.MissingInternalPOI : WalletBalanceBucket.MissingExternalPOI
 }
 
 export function getWalletDBStats (db: WalletDB, walletId: string) {
