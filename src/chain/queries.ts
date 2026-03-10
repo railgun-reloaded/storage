@@ -176,7 +176,8 @@ export function updateSyncState (
   chainID: number,
   lastBlockHeight: bigint
 ): void {
-  upsertRow(db, syncState, syncState.chainID, { chainID, lastBlockHeight })
+  const { changes } = upsertRow(db, syncState, syncState.chainID, { chainID, lastBlockHeight })
+  return changes
 }
 
 export function runDBTransaction (db: ChainDB, callback: (tx: SQLiteTransaction<any, any, any, any>) => any): any {

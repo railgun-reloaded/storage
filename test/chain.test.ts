@@ -5,10 +5,12 @@ import {
   getCommitmentsByBlockRange,
   getCommitmentsByLeafRange,
   getNullifiersByBlockRange,
+  getSyncState,
   insertCommitmentBatch,
   insertNullifiersBatch,
   nullifierExists,
-  setMerkleTree
+  setMerkleTree,
+  updateSyncState
 } from '../src'
 
 import { createTestChainDB, createTestMerkleTreeLeaves, createTestNullifiers, createTestShieldCommitments, shuffleArray } from './utils'
@@ -235,4 +237,18 @@ test('ChainDB: Should throw on invalid commitment data', (assert) => {
   assert.exception(async () => {
     insertCommitmentBatch(db, commitment)
   })
+})
+
+test('ChainDB: Should validate scan state', (assert) => {
+  const db = createTestChainDB()
+  const inserted = updateSyncState(db, 1, 54843n)
+  assert.is(inserted, 1)
+
+  const syncState = getSyncState(db, 1)
+  if (syncState) {
+    assert.is(syncState.chainID, 1)
+    assert.is(syncState.lastBlockHeight, 54843n)
+  } else {
+    assert.fail()
+  }
 })
