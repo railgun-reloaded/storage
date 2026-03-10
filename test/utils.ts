@@ -111,6 +111,9 @@ export function createTestWalletDB (): WalletDB {
       block_number TEXT NOT NULL,
       tree_id INTEGER NOT NULL,
       leaf_index TEXT NOT NULL,
+      commitment_type TEXT NOT NULL DEFAULT 'TransactCommitmentV2',
+      output_type INTEGER,
+      pois_per_list TEXT,
       decrypted_at INTEGER NOT NULL DEFAULT (unixepoch()),
       FOREIGN KEY (wallet_id) REFERENCES wallets(id) ON DELETE CASCADE
     );
@@ -118,6 +121,25 @@ export function createTestWalletDB (): WalletDB {
     CREATE INDEX IF NOT EXISTS notes_wallet_token_idx ON notes(wallet_id, token);
     CREATE INDEX IF NOT EXISTS notes_nullifier_idx ON notes(nullifier);
     CREATE INDEX IF NOT EXISTS notes_tree_leaf_idx ON notes(tree_id, leaf_index);
+
+    CREATE TABLE IF NOT EXISTS sent_notes (
+      commitment TEXT PRIMARY KEY NOT NULL,
+      wallet_id TEXT NOT NULL,
+      txid TEXT NOT NULL,
+      token TEXT NOT NULL,
+      amount TEXT NOT NULL,
+      output_type INTEGER,
+      wallet_source TEXT,
+      recipient_address TEXT NOT NULL,
+      commitment_type TEXT NOT NULL,
+      block_number TEXT NOT NULL,
+      tree_id INTEGER NOT NULL,
+      leaf_index TEXT NOT NULL,
+      created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+      FOREIGN KEY (wallet_id) REFERENCES wallets(id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS sent_notes_wallet_idx ON sent_notes(wallet_id);
+    CREATE INDEX IF NOT EXISTS sent_notes_txid_idx ON sent_notes(txid);
 
     CREATE TABLE IF NOT EXISTS balances (
       wallet_id TEXT NOT NULL,
