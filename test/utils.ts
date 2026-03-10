@@ -4,7 +4,7 @@
 
 import crypto from 'crypto'
 
-import type { ChainDB, DBNewNulliifer, WalletDB } from '../src/index'
+import type { ChainDB, DBNewCommitment, DBNewNulliifer, WalletDB } from '../src/index'
 import {
   // type NewCommitment,
   // type NewMerkleNode,
@@ -14,6 +14,11 @@ import {
   createChainDB,
   createWalletDB
 } from '../src/index'
+
+enum CommitmentType {
+  ShieldCommitment = 0,
+  TransactCommitment = 1
+}
 
 /**
  * Creates an in-memory chain database for testing.
@@ -32,8 +37,8 @@ export function createTestChainDB (): ChainDB {
   return db
 }
 
-function randomHex (byteSize: number) : Uint8Array {
-  return crypto.randomBytes(byteSize)
+function randomBytes (byteSize: number) : Uint8Array {
+  return Uint8Array.from(crypto.randomBytes(byteSize))
 }
 
 /**
@@ -58,13 +63,14 @@ export function createTestWalletDB (): WalletDB {
  * Creates a test nullifier record.
  * @param count - Number of test nullifiers to create
  * @param startBlock - Optionally specify the starting block of nullifiers
+ * @returns - Array of generated test nullifiers
  */
 export function createTestNullifiers (count: number, startBlock?: bigint): DBNewNulliifer[] {
   const result = []
   for (let i = 0; i < count; ++i) {
     result.push({
-      nullifier: randomHex(32),
-      transactionHash: randomHex(32),
+      nullifier: randomBytes(32),
+      transactionHash: randomBytes(32),
       blockNumber: (startBlock ?? 1000n) + BigInt(i),
       treeNumber: 0,
     })
@@ -75,47 +81,54 @@ export function createTestNullifiers (count: number, startBlock?: bigint): DBNew
 export function createTestMerkleTreeLeaves () {
   const leaves = new Uint8Array(65536 * 32)
   for (let i = 0; i < 65536; ++i) {
-    leaves.set(randomHex(32), i * 32)
+    leaves.set(randomBytes(32), i * 32)
   }
   return leaves
 }
 
-// let nodeCounter = 0
+/**
+ * Creates a test commitment record.
+ * @param count - Number of test commitments to generate
+ * @param startBlock - Optional startBlock
+ * @returns - Array of generated test commitments
+ */
+export function createTestShieldCommitments (count: number, startBlock? : bigint): DBNewCommitment[] {
+  const shieldCommitments = new Array<DBNewCommitment>()
+  for (let i = 0; i < count; ++i) {
+    const tokenID = randomBytes(32)
+    const hash = randomBytes(32)
 
-// /**
-//  * Creates a test merkle node record.
-//  * @param overrides
-//  */
-// export function createTestMerkleNode (overrides?: Partial<NewMerkleNode>): NewMerkleNode {
-//   nodeCounter++
-//   return {
-//     treeId: 0,
-//     level: 0,
-//     index: BigInt(nodeCounter),
-//     hash: Buffer.from(nodeCounter.toString(16).padStart(64, '0'), 'hex'),
-//     ...overrides,
-//   }
-// }
+    const tokenInfo = {
+      tokenID,
+      tokenSubID: randomBytes(32),
+      tokenType: 0
+    }
 
-// let commitmentCounter = 0
+    shieldCommitments.push({
+      transactionHash: randomBytes(32),
+      blockNumber: startBlock ?? (100n + BigInt(i)),
+      treeNumber: 0,
+      hash,
+      commitmentType: CommitmentType.ShieldCommitment,
+      treePosition: i,
+      commitment: {
+        npk: randomBytes(32),
+        value: '1000n',
+        from: randomBytes(32),
+        tokenInfo,
+        hash
+      }
+    })
+  }
+  return shieldCommitments
+}
 
-// /**
-//  * Creates a test commitment record.
-//  * @param overrides
-//  */
-// export function createTestCommitment (
-//   overrides?: Partial<NewCommitment>
-// ): NewCommitment {
-//   commitmentCounter++
-//   return {
-//     hash: `0x${commitmentCounter.toString(16).padStart(64, '0')}`,
-//     treeId: 0,
-//     leafIndex: BigInt(commitmentCounter),
-//     blockNumber: 1000n + BigInt(commitmentCounter),
-//     txid: `0x${Math.random().toString(16).slice(2).padStart(64, '0')}`,
-//     ...overrides,
-//   }
-// }
+export function shuffleArray (arr: any[]) {
+  return arr
+    .map(value => ({ value, sort: Math.random() }))
+    .sort((a, b) => a.sort - b.sort)
+    .map(({ value }) => value)
+}
 
 // let walletCounter = 0
 

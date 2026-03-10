@@ -1,5 +1,6 @@
-import { relations, sql } from 'drizzle-orm'
+import { sql } from 'drizzle-orm'
 import { blob, check, customType, index, integer, sqliteTable } from 'drizzle-orm/sqlite-core'
+import { pack, unpack } from 'msgpack'
 
 const bigint = customType<{ data: bigint; driverData: string }>({
   dataType () {
@@ -11,6 +12,19 @@ const bigint = customType<{ data: bigint; driverData: string }>({
   fromDriver (value: string): bigint {
     return BigInt(`0x${value}`)
   },
+})
+
+const msgpackBlob = customType<{ data: any; driverData: Buffer }>({
+  dataType () {
+    return 'blob'
+  },
+
+  toDriver (value: any) {
+    return pack(value)
+  },
+  fromDriver (value: Buffer) {
+    return unpack(value)
+  }
 })
 
 export const nullifiers = sqliteTable(
@@ -31,15 +45,6 @@ export const nullifiers = sqliteTable(
   })
 )
 
-export const tokens = sqliteTable(
-  'tokens',
-  {
-    tokenID: blob('tokenID').notNull().primaryKey(),
-    tokenSubID: blob('tokenSubID').notNull(),
-    tokenType: integer('tokenType').notNull()
-  }
-)
-
 export const unshields = sqliteTable(
   'unshields',
   {
@@ -48,7 +53,7 @@ export const unshields = sqliteTable(
     timestamp: bigint('timestamp'),
     toAddress: blob('toAddress').notNull(),
     // token need reference to another table
-    tokenID: blob('tokenID').references(() => tokens.tokenID),
+    tokenInfo: msgpackBlob('token'),
     amount: bigint('amount').notNull(),
     fee: bigint('fee').notNull(),
     eventLogIndex: integer('eventLogIndex')
@@ -59,19 +64,7 @@ export const unshields = sqliteTable(
   })
 )
 
-/**
- * Creating a relation help us to recursively fetch the data without additional process from
- * our side. For e.g
- * db.query.unshields.findMany({with: {token: true}})
- */
-export const unshieldsRelation = relations(unshields, ({ one }) => ({
-  token: one(tokens, {
-    fields: [unshields.tokenID],
-    references: [tokens.tokenID]
-  })
-}))
-
-// We have two choices here, either we can store whole tree as a blob, which
+// We have two choices here, either we can store whole tree as a uint8Array, which
 // should be roughly 4mb, it should be loaded directly into the memory and can
 // be appended to tree without any issue. Only serialization of whole tree and
 // deserialization. Application keep tracks of duplicate, we just use table to store
@@ -113,7 +106,10 @@ export const commitments = sqliteTable(
     transactionHash: blob('transactionHash').notNull(),
     blockNumber: bigint('blockNumber').notNull(),
     treeNumber: integer('treeNumber').notNull(),
-    treePosition: integer('treePosition').notNull()
+    treePosition: integer('treePosition').notNull(),
+    // Commitment is a deeply nested object, which is hard to represent properly in sqlite, so we
+    // fallback to jsonblob as we won't do any filtering by it
+    commitment: msgpackBlob('commitment').notNull()
   },
   (table) => ({
     treePositionIndex: index('commitment_tree_data_index').on(
@@ -124,43 +120,6 @@ export const commitments = sqliteTable(
   })
 )
 
-export const shieldCommitments = sqliteTable('shield_commitments', {
-  hash: blob('hash').primaryKey().references(() => commitments.hash, { onDelete: 'cascade' }),
-  npk: blob('npk').notNull(),
-  tokenID: blob('tokenID').references(() => tokens.tokenID),
-  value: bigint('value').notNull(),
-  fee: bigint('fee'),
-  from: blob('from').notNull()
-  // @TODO add encrypted bundle
-})
-
-export const transactCommitments = sqliteTable('transact_commitments', {
-  hash: blob('hash').primaryKey().references(() => commitments.hash, { onDelete: 'cascade' })
-})
-
-/**
- * Create a relation between commitment table and shield/transact commitments
- * so that we can query the commitment table to fetch data from both of the table (some kind of union?)
- * E.g. query
- *  db.query.commitments.findMany({
- *      where: eq(commitments.treeNumber, 3),
- *      with: {
- *          shield: true,
- *          transact: true
- *      }
- *  })
- */
-export const commitmentsRelations = relations(commitments, ({ one }) => ({
-  shield: one(shieldCommitments, {
-    fields: [commitments.hash],
-    references: [shieldCommitments.hash]
-  }),
-  transact: one(transactCommitments, {
-    fields: [commitments.hash],
-    references: [transactCommitments.hash]
-  })
-}))
-
 export type DBNullifier = typeof nullifiers.$inferSelect
 export type DBNewNulliifer = typeof nullifiers.$inferInsert
 export type DBMerkleTree = typeof merkleTrees.$inferSelect
@@ -169,3 +128,7 @@ export type DBUnshield = typeof unshields.$inferInsert
 export type DBNewUnshield = typeof unshields.$inferSelect
 export type DBCommitment = typeof commitments.$inferSelect
 export type DBNewCommitment = typeof commitments.$inferInsert
+export type DBShieldCommitment = typeof commitments.$inferSelect
+
+// export type DBNewToken = typeof tokens.$inferInsert
+// export type DBToken = typeof tokens.$inferSelect

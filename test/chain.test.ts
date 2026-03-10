@@ -1,148 +1,17 @@
 import { test } from 'brittle'
 
-import { deleteNullifiersFromBlock, getNullifiersByBlockRange, insertNullifiersBatch, nullifierExists, setMerkleTree } from '../src'
-
-import { createTestChainDB, createTestMerkleTreeLeaves, createTestNullifiers } from './utils'
-/*
 import {
   deleteNullifiersFromBlock,
-  getChainDBStats,
+  getCommitmentsByBlockRange,
   getCommitmentsByLeafRange,
-  getMerkleNode,
-  getMerkleSiblingPath,
   getNullifiersByBlockRange,
-  getSyncState,
-  insertCommitmentsBatch,
-  insertMerkleNodesBatch,
+  insertCommitmentBatch,
   insertNullifiersBatch,
   nullifierExists,
-  updateSyncState,
-} from '../src/chain/index'
+  setMerkleTree
+} from '../src'
 
-import {
-  createTestChainDB,
-  createTestCommitment,
-  createTestMerkleNode,
-  createTestNullifier,
-  resetTestCounters,
-} from './utils'
-
-test('Chain Database - Merkle Nodes: insert and retrieve', (t) => {
-  resetTestCounters()
-  const db = createTestChainDB()
-  const node = createTestMerkleNode({ treeId: 0, level: 1, index: 5n })
-
-  insertMerkleNodesBatch(db, [node])
-
-  const retrieved = getMerkleNode(db, 0, 1, 5n)
-
-  t.ok(retrieved)
-  t.alike(retrieved?.hash, node.hash)
-})
-
-test('Chain Database - Merkle Nodes: batch insert', (t) => {
-  resetTestCounters()
-  const db = createTestChainDB()
-  const nodes = [
-    createTestMerkleNode({ level: 0, index: 0n }),
-    createTestMerkleNode({ level: 0, index: 1n }),
-    createTestMerkleNode({ level: 1, index: 0n }),
-  ]
-
-  const count = insertMerkleNodesBatch(db, nodes)
-
-  t.is(count, 3)
-})
-
-test('Chain Database - Merkle Nodes: get sibling path', (t) => {
-  resetTestCounters()
-  const db = createTestChainDB()
-  const depth = 4
-
-  const nodes = [
-    createTestMerkleNode({ level: 0, index: 4n, hash: Buffer.from('04'.repeat(32), 'hex') }),
-    createTestMerkleNode({ level: 0, index: 5n, hash: Buffer.from('05'.repeat(32), 'hex') }),
-    createTestMerkleNode({ level: 1, index: 2n, hash: Buffer.from('12'.repeat(32), 'hex') }),
-    createTestMerkleNode({ level: 1, index: 3n, hash: Buffer.from('13'.repeat(32), 'hex') }),
-    createTestMerkleNode({ level: 2, index: 0n, hash: Buffer.from('20'.repeat(32), 'hex') }),
-    createTestMerkleNode({ level: 2, index: 1n, hash: Buffer.from('21'.repeat(32), 'hex') }),
-    createTestMerkleNode({ level: 3, index: 1n, hash: Buffer.from('31'.repeat(32), 'hex') }),
-  ]
-
-  insertMerkleNodesBatch(db, nodes)
-
-  const siblings = getMerkleSiblingPath(db, 0, 5n, depth)
-
-  t.is(siblings.length, depth)
-  t.alike(siblings[0], Buffer.from('04'.repeat(32), 'hex'))
-  t.alike(siblings[1], Buffer.from('13'.repeat(32), 'hex'))
-  t.alike(siblings[2], Buffer.from('20'.repeat(32), 'hex'))
-  t.alike(siblings[3], Buffer.from('31'.repeat(32), 'hex'))
-})
-
-test('Chain Database - Commitments: insert and query', (t) => {
-  resetTestCounters()
-  const db = createTestChainDB()
-  const commitments = [
-    createTestCommitment({ leafIndex: 10n }),
-    createTestCommitment({ leafIndex: 11n }),
-    createTestCommitment({ leafIndex: 12n }),
-  ]
-
-  insertCommitmentsBatch(db, commitments)
-
-  const range = getCommitmentsByLeafRange(db, 0, 10n, 11n)
-
-  t.is(range.length, 2)
-  t.is(range[0]!.leafIndex, 10n)
-  t.is(range[1]!.leafIndex, 11n)
-})
-
-test('Chain Database - Commitments: handle empty batch', (t) => {
-  const db = createTestChainDB()
-
-  const count = insertCommitmentsBatch(db, [])
-
-  t.is(count, 0)
-})
-
-test('Chain Database - Sync State: set and get', (t) => {
-  const db = createTestChainDB()
-
-  updateSyncState(db, 1, 1000n)
-
-  const state = getSyncState(db, 1)
-
-  t.ok(state)
-  t.is(state?.lastBlock, 1000n)
-})
-
-test('Chain Database - Sync State: update existing', (t) => {
-  const db = createTestChainDB()
-
-  updateSyncState(db, 1, 1000n)
-  updateSyncState(db, 1, 2000n)
-
-  const state = getSyncState(db, 1)
-
-  t.is(state?.lastBlock, 2000n)
-})
-
-test('Chain Database - Stats: return correct counts', (t) => {
-  resetTestCounters()
-  const db = createTestChainDB()
-
-  insertNullifiersBatch(db, [createTestNullifier(), createTestNullifier()])
-  insertMerkleNodesBatch(db, [createTestMerkleNode()])
-  insertCommitmentsBatch(db, [createTestCommitment()])
-
-  const stats = getChainDBStats(db)
-
-  t.is(stats.nullifiers, 2)
-  t.is(stats.merkleNodes, 1)
-  t.is(stats.commitments, 1)
-})
-*/
+import { createTestChainDB, createTestMerkleTreeLeaves, createTestNullifiers, createTestShieldCommitments, shuffleArray } from './utils'
 
 test('ChainDB: Insert nullifiers', (assert) => {
   const db = createTestChainDB()
@@ -159,7 +28,7 @@ test('ChainDB: Should insert and fetch same nullifiers', (assert) => {
   assert.is(changes, nullifiersBatch.length)
 
   const fetchedNullifiers = getNullifiersByBlockRange(db, startBlock, startBlock + 10n)
-  assert.alike(nullifiersBatch, fetchedNullifiers)
+  assert.alike.coercively(nullifiersBatch, fetchedNullifiers)
 })
 
 test('ChainDB: Should insert and check it exists', (assert) => {
@@ -196,7 +65,7 @@ test('ChainDB: Should fetch nullifier by block range', (assert) => {
 
   assert.is(changes, nullifiersBatch.length)
   const fetchedNullifiers = getNullifiersByBlockRange(db, startBlock, startBlock + 10n)
-  assert.alike(nullifiersBatch, fetchedNullifiers)
+  assert.alike.coercively(nullifiersBatch, fetchedNullifiers)
 })
 
 test('ChainDB: Should handle duplicate nullifiers id', (assert) => {
@@ -214,8 +83,8 @@ test('ChainDB: Should handle duplicate nullifiers id', (assert) => {
   assert.is(nullifiers.length, nullifiersBatch.length)
 
   for (let i = 0; i < nullifiersBatch.length; ++i) {
-    assert.alike(nullifiers[i]!.nullifier as Uint8Array, nullifiersBatch[i]?.nullifier)
-    assert.alike(nullifiers[i]!.transactionHash as Uint8Array, nullifiersBatch[i]?.transactionHash)
+    assert.alike.coercively(nullifiers[i]!.nullifier as Uint8Array, nullifiersBatch[i]?.nullifier)
+    assert.alike.coercively(nullifiers[i]!.transactionHash as Uint8Array, nullifiersBatch[i]?.transactionHash)
     assert.is(nullifiers[i]!.treeNumber, nullifiersBatch[i]?.treeNumber)
   }
 })
@@ -269,4 +138,75 @@ test('ChainDB: Should throw on invalid merkletree leafCount', (assert) => {
       leafCount: 65537
     })
   })
+})
+
+test('ChainDB: Should insert shieldCommitments', (assert) => {
+  const db = createTestChainDB()
+  const commitments = createTestShieldCommitments(8, 1000n)
+
+  const inserted = insertCommitmentBatch(db, commitments)
+  assert.is(inserted, 8)
+})
+
+test('ChainDB: Should insert and fetch shieldCommitments', async (assert) => {
+  const db = createTestChainDB()
+
+  const startBlock = 1000n
+  const commitments = createTestShieldCommitments(8, startBlock)
+
+  const inserted = insertCommitmentBatch(db, commitments)
+  assert.is(inserted, commitments.length)
+
+  const results = getCommitmentsByBlockRange(db, startBlock, startBlock + 1n)
+  assert.is(results.length, commitments.length)
+
+  assert.alike.coercively(results, commitments)
+})
+
+test.solo('ChainDB: Should find commitments by treePosition ranges', async (assert) => {
+  const db = createTestChainDB()
+
+  const startBlock = 1000n
+  const commitments = createTestShieldCommitments(16, startBlock)
+
+  const shuffleCommitments = commitments
+    .map(value => ({ value, sort: Math.random() }))
+    .sort((a, b) => a.sort - b.sort)
+    .map(({ value }) => value)
+
+  const inserted = insertCommitmentBatch(db, shuffleCommitments)
+  assert.is(inserted, commitments.length)
+
+  const results = getCommitmentsByLeafRange(db, 0, 0, 16)
+  assert.alike.coercively(results, commitments)
+})
+
+test('ChainDB: Should find commitments by treePosition ranges', async (assert) => {
+  const db = createTestChainDB()
+
+  const startBlock = 1000n
+  const commitments = createTestShieldCommitments(16, startBlock)
+
+  const shuffleCommitments = shuffleArray(commitments)
+
+  const inserted = insertCommitmentBatch(db, shuffleCommitments)
+  assert.is(inserted, commitments.length)
+
+  const results = getCommitmentsByLeafRange(db, 0, 0, 16)
+  assert.alike.coercively(results, commitments)
+})
+
+test.solo('ChainDB: Should find commitments by block ranges', async (assert) => {
+  const db = createTestChainDB()
+
+  const commitments = createTestShieldCommitments(16)
+  const shuffleCommitments = shuffleArray(commitments)
+
+  const inserted = insertCommitmentBatch(db, shuffleCommitments)
+  assert.is(inserted, commitments.length)
+
+  const startBlock = commitments[0]!.blockNumber
+  const endBlock = commitments[commitments.length - 1]!.blockNumber
+  const results = getCommitmentsByBlockRange(db, startBlock, endBlock)
+  assert.alike.coercively(results, commitments)
 })

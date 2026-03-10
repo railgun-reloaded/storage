@@ -44,13 +44,15 @@
   ],
   "dependencies": {
     "better-sqlite3": "^11.8.1",
-    "drizzle-orm": "^0.36.4"
+    "drizzle-orm": "^0.36.4",
+    "msgpack": "^1.0.3"
   },
   "devDependencies": {
     "@railgun-reloaded/eslint-config": "^1.1.0",
     "@railgun-reloaded/tsconfig": "^1.2.0",
     "@types/better-sqlite3": "^7.6.12",
     "@types/brittle": "^3.5.0",
+    "@types/msgpack": "^0.0.34",
     "@types/node": "^24.0.3",
     "brittle": "^3.19.1",
     "drizzle-kit": "^0.29.1",

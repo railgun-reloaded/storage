@@ -1,4 +1,5 @@
-import { and, eq, getTableColumns, gte, inArray, lte, sql } from 'drizzle-orm'
+import { and, eq, getTableColumns, gte, lte, sql } from 'drizzle-orm'
+import type { SQLiteTransaction } from 'drizzle-orm/sqlite-core'
 
 import type { ChainDB } from './db'
 import type { DBNewCommitment, DBNewMerkleTree, DBNewNulliifer } from './schema'
@@ -6,11 +7,13 @@ import {
   commitments,
   merkleTrees,
   nullifiers,
-  syncState
+  syncState,
 } from './schema'
 
+type DBContext = ChainDB | SQLiteTransaction<any, any, any, any>
+
 function upsertRow<T extends Record<string, unknown>> (
-  db: ChainDB,
+  db: DBContext,
   table: any,
   target: any,
   values: T | T[]
@@ -29,18 +32,19 @@ function upsertRow<T extends Record<string, unknown>> (
     .onConflictDoUpdate({ target, set }).run()
 }
 
+// Nullifiers
 export function nullifierExists (db: ChainDB, nullifier: Uint8Array): boolean {
   const result = db
-    .select({ nullifier: nullifiers.nullifier })
+    .select()
     .from(nullifiers)
     .where(eq(nullifiers.nullifier, nullifier))
     .get()
   return result !== undefined
 }
 
-export function insertNullifiersBatch (db: ChainDB, records: DBNewNulliifer[]): number {
-  if (records.length === 0) return 0
-  const { changes } = upsertRow<DBNewNulliifer>(db, nullifiers, nullifiers.nullifier, records)
+export function insertNullifiersBatch (db: DBContext, nullifierBatch: DBNewNulliifer[]): number {
+  if (nullifierBatch.length === 0) return 0
+  const { changes } = upsertRow<DBNewNulliifer>(db, nullifiers, nullifiers.nullifier, nullifierBatch)
   return changes
 }
 
@@ -61,7 +65,7 @@ export function getNullifiersByBlockRange (
     .all()
 }
 
-export function deleteNullifiersFromBlock (db: ChainDB, fromBlock: bigint): number {
+export function deleteNullifiersFromBlock (db: DBContext, fromBlock: bigint): number {
   const { changes } = db
     .delete(nullifiers)
     .where(gte(nullifiers.blockNumber, fromBlock))
@@ -69,9 +73,11 @@ export function deleteNullifiersFromBlock (db: ChainDB, fromBlock: bigint): numb
   return changes
 }
 
-export function insertCommitmentsBatch (db: ChainDB, records: DBNewCommitment[]): number {
-  if (records.length === 0) return 0
-  const { changes } = upsertRow(db, commitments, commitments.hash, records)
+// Commitments
+
+export function insertCommitmentBatch (db: DBContext, commitmentBatch: DBNewCommitment[]) : number {
+  if (commitmentBatch.length === 0) return 0
+  const { changes } = upsertRow(db, commitments, commitments.hash, commitmentBatch)
   return changes
 }
 
@@ -116,6 +122,7 @@ export function getCommitmentsByBlockRange (
         lte(commitments.blockNumber, toBlock)
       )
     )
+    .orderBy(commitments.blockNumber)
     .all()
 }
 
@@ -125,14 +132,14 @@ export function getCommitmentsByBlockRange (
  * @param fromBlock - Delete commitments from this block onwards
  * @returns Number of rows deleted
  */
-export function deleteCommitmentsFromBlock (db: ChainDB, fromBlock: bigint): number {
+export function deleteCommitmentsFromBlock (db: DBContext, fromBlock: bigint): number {
   const { changes } = db
     .delete(commitments)
     .where(gte(commitments.blockNumber, fromBlock))
     .run()
   return changes
 }
-
+/*
 export function getCommitmentsByHashes (db: ChainDB, hashes: Uint8Array[]) {
   if (hashes.length === 0) return []
 
@@ -142,7 +149,7 @@ export function getCommitmentsByHashes (db: ChainDB, hashes: Uint8Array[]) {
     .where(inArray(commitments.hash, hashes))
     .all()
 }
-
+*/
 export function getMerkleTree (db: ChainDB, treeNumber: number) {
   return db
     .select()
@@ -151,7 +158,7 @@ export function getMerkleTree (db: ChainDB, treeNumber: number) {
     .get()
 }
 
-export function setMerkleTree (db: ChainDB, leaves: DBNewMerkleTree) {
+export function setMerkleTree (db: DBContext, leaves: DBNewMerkleTree) {
   const { changes } = upsertRow(db, merkleTrees, merkleTrees.treeNumber, leaves)
   return changes
 }
@@ -165,9 +172,13 @@ export function getSyncState (db: ChainDB, chainID: number) {
 }
 
 export function updateSyncState (
-  db: ChainDB,
+  db: DBContext,
   chainID: number,
   lastBlockHeight: bigint
 ): void {
   upsertRow(db, syncState, syncState.chainID, { chainID, lastBlockHeight })
+}
+
+export function runDBTransaction (db: ChainDB, callback: (tx: SQLiteTransaction<any, any, any, any>) => any): any {
+  return db.transaction(callback)
 }
