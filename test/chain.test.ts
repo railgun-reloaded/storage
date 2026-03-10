@@ -148,7 +148,7 @@ test('ChainDB: Should insert shieldCommitments', (assert) => {
   assert.is(inserted, 8)
 })
 
-test('ChainDB: Should insert and fetch shieldCommitments', async (assert) => {
+test('ChainDB: Should insert and fetch shieldCommitments', (assert) => {
   const db = createTestChainDB()
 
   const startBlock = 1000n
@@ -163,7 +163,7 @@ test('ChainDB: Should insert and fetch shieldCommitments', async (assert) => {
   assert.alike.coercively(results, commitments)
 })
 
-test.solo('ChainDB: Should find commitments by treePosition ranges', async (assert) => {
+test('ChainDB: Should find commitments by treePosition ranges', (assert) => {
   const db = createTestChainDB()
 
   const startBlock = 1000n
@@ -181,7 +181,7 @@ test.solo('ChainDB: Should find commitments by treePosition ranges', async (asse
   assert.alike.coercively(results, commitments)
 })
 
-test('ChainDB: Should find commitments by treePosition ranges', async (assert) => {
+test('ChainDB: Should find commitments by treePosition ranges', (assert) => {
   const db = createTestChainDB()
 
   const startBlock = 1000n
@@ -196,7 +196,7 @@ test('ChainDB: Should find commitments by treePosition ranges', async (assert) =
   assert.alike.coercively(results, commitments)
 })
 
-test.solo('ChainDB: Should find commitments by block ranges', async (assert) => {
+test('ChainDB: Should find commitments by block ranges', (assert) => {
   const db = createTestChainDB()
 
   const commitments = createTestShieldCommitments(16)
@@ -209,4 +209,30 @@ test.solo('ChainDB: Should find commitments by block ranges', async (assert) => 
   const endBlock = commitments[commitments.length - 1]!.blockNumber
   const results = getCommitmentsByBlockRange(db, startBlock, endBlock)
   assert.alike.coercively(results, commitments)
+})
+
+test('ChainDB: Should handle empty commitments', (assert) => {
+  const db = createTestChainDB()
+  assert.execution(() => {
+    insertCommitmentBatch(db, [])
+  })
+})
+
+test('ChainDB: Should throw on invalid tree position', (assert) => {
+  const db = createTestChainDB()
+  const commitment = createTestShieldCommitments(1)
+  commitment[0]!.treePosition = 66_000
+  assert.exception(async () => {
+    insertCommitmentBatch(db, commitment)
+  })
+})
+
+test('ChainDB: Should throw on invalid commitment data', (assert) => {
+  const db = createTestChainDB()
+  const commitment = createTestShieldCommitments(1)
+  commitment[0]!.treePosition = 66_000
+  commitment[0]!.commitment = undefined
+  assert.exception(async () => {
+    insertCommitmentBatch(db, commitment)
+  })
 })

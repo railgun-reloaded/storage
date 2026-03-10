@@ -116,7 +116,8 @@ export const commitments = sqliteTable(
       table.treeNumber,
       table.treePosition
     ),
-    transactionHashIndex: index('commitment_tx_hash_index').on(table.transactionHash)
+    transactionHashIndex: index('commitment_tx_hash_index').on(table.transactionHash),
+    treePositionCheck: check('tree_position_check', sql`${table.treePosition} < 65536`)
   })
 )
 
