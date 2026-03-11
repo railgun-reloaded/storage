@@ -5,7 +5,10 @@ import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
 
 import * as schema from './schema'
 
-export interface ChainDBConfig {
+/**
+ * Configuration options for creating a chain database instance.
+ */
+interface ChainDBConfig {
   path: string;
   enableWAL?: boolean;
   runMigrations?: boolean;
@@ -13,12 +16,18 @@ export interface ChainDBConfig {
   verbose?: boolean;
 }
 
-export interface ChainDB extends BetterSQLite3Database<typeof schema> {
+interface ChainDB extends BetterSQLite3Database<typeof schema> {
   $client: Database.Database;
 }
 
 const DEFAULT_MIGRATION_FOLDER = './drizzle/chain'
-export function createChainDB (config: ChainDBConfig): ChainDB {
+/**
+ * Create a Drizzle SQLite database for storing chain events.
+ * SQLite methods are synchronous, so callers do not need to await operations.
+ * @param config - ChainDB creation configuration options.
+ * @returns A configured ChainDB instance.
+ */
+function createChainDB (config: ChainDBConfig): ChainDB {
   const {
     path,
     enableWAL,
@@ -52,6 +61,12 @@ export function createChainDB (config: ChainDBConfig): ChainDB {
   return db
 }
 
+/**
+ * Configure common SQLite pragmas on the provided database instance.
+ * @param sqlite - The database instance to configure.
+ * @param enableWAL - Whether to enable Write-Ahead Logging for concurrent
+ *   read/write access.
+ */
 function configurePragmas (sqlite: Database.Database, enableWAL: boolean): void {
   if (enableWAL) {
     sqlite.pragma('journal_mode = WAL')
@@ -64,14 +79,25 @@ function configurePragmas (sqlite: Database.Database, enableWAL: boolean): void 
   sqlite.pragma('foreign_keys = ON')
 }
 
-export function closeChainDB (db: ChainDB): void {
+/**
+ * Close the chain database if it is not currently in a transaction.
+ * @param db - The ChainDB instance to close.
+ */
+function closeChainDB (db: ChainDB): void {
   const sqlite = db.$client
   if (sqlite && !sqlite.inTransaction) {
     sqlite.close()
   }
 }
 
-export function optimizeChainDB (db: ChainDB, vacuum: boolean = false): void {
+/**
+ * Perform optimization and maintenance on the database.
+ * @param db - The ChainDB instance to optimize.
+ * @param vacuum - If true, performs a `VACUUM` which rebuilds the database file,
+ *   defragments it, and reclaims unused space. This operation can be slow on
+ *   large databases.
+ */
+function optimizeChainDB (db: ChainDB, vacuum: boolean = false): void {
   const sqlite = db.$client
 
   sqlite.pragma('analysis_limit = 1000')
@@ -82,14 +108,27 @@ export function optimizeChainDB (db: ChainDB, vacuum: boolean = false): void {
   }
 }
 
-export function getChainDBSize (db: ChainDB): number {
+/**
+ * Query the total size occupied by the database file.
+ * @param db - The ChainDB instance to inspect.
+ * @returns The total size used by the database in bytes.
+ */
+function getChainDBSize (db: ChainDB): number {
   const sqlite = db.$client
   const result = sqlite.pragma('page_count', { simple: true }) as number
   const pageSize = sqlite.pragma('page_size', { simple: true }) as number
   return result * pageSize
 }
 
-export function backupChainDB (db: ChainDB, backupPath: string): void {
+/**
+ * Create a backup of the provided database instance.
+ * @param db - The ChainDB instance to back up.
+ * @param backupPath - Filesystem path where the backup should be written.
+ */
+function backupChainDB (db: ChainDB, backupPath: string): void {
   const sqlite = db.$client
   sqlite.backup(backupPath)
 }
+
+export { createChainDB, closeChainDB, optimizeChainDB, getChainDBSize, backupChainDB }
+export type { ChainDB, ChainDBConfig }

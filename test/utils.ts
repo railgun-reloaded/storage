@@ -26,11 +26,12 @@ enum CommitmentType {
 /**
  * Creates an in-memory chain database for testing.
  * Initializes schema tables manually since migrations don't run for :memory:.
+ * @returns - ChainDB Instance
  */
-export function createTestChainDB (): ChainDB {
+function createTestChainDB (): ChainDB {
   // We still need to run db:generate command even though we are making in-memory database
   // This prevent us from manually writing query to generate the table and allow us to
-  // directly migration from existing file
+  // directly migration from existing file.
   const db = createChainDB({
     path: ':memory:',
     enableWAL: false,
@@ -40,6 +41,11 @@ export function createTestChainDB (): ChainDB {
   return db
 }
 
+/**
+ * Generate a random bytes of given byte size.
+ * @param byteSize - Total number of random bytes to generate.
+ * @returns - Uint8Array representation of random bytes of given byteSize.
+ */
 function randomBytes (byteSize: number) : Uint8Array {
   return Uint8Array.from(crypto.randomBytes(byteSize))
 }
@@ -47,8 +53,9 @@ function randomBytes (byteSize: number) : Uint8Array {
 /**
  * Creates an in-memory wallet database for testing.
  * Initializes schema tables manually since migrations don't run for :memory:.
+ * @returns - WalletDB Instane
  */
-export function createTestWalletDB (): WalletDB {
+function createTestWalletDB (): WalletDB {
   const db = createWalletDB({
     path: ':memory:',
     enableWAL: false,
@@ -66,9 +73,9 @@ export function createTestWalletDB (): WalletDB {
  * Creates a test nullifier record.
  * @param count - Number of test nullifiers to create
  * @param startBlock - Optionally specify the starting block of nullifiers
- * @returns - Array of generated test nullifiers
+ * @returns - Array of random generated test nullifiers
  */
-export function createTestNullifiers (count: number, startBlock?: bigint): DBNewNulliifer[] {
+function createTestNullifiers (count: number, startBlock?: bigint): DBNewNulliifer[] {
   const result = []
   for (let i = 0; i < count; ++i) {
     result.push({
@@ -81,7 +88,12 @@ export function createTestNullifiers (count: number, startBlock?: bigint): DBNew
   return result
 }
 
-export function createTestMerkleTreeLeaves () {
+/**
+ * Create Test MerkleTree leaves. All the leaves of depth 16
+ * are generated and kept in single Uint8Array
+ * @returns - random merkleTree leaves stored in Uint8Array
+ */
+function createTestMerkleTreeLeaves () {
   const leaves = new Uint8Array(65536 * 32)
   for (let i = 0; i < 65536; ++i) {
     leaves.set(randomBytes(32), i * 32)
@@ -91,11 +103,11 @@ export function createTestMerkleTreeLeaves () {
 
 /**
  * Creates a test commitment record.
- * @param count - Number of test commitments to generate
- * @param startBlock - Optional startBlock
- * @returns - Array of generated test commitments
+ * @param count - Number of test commitments to generate.
+ * @param startBlock - Optional startBlock.
+ * @returns - Array of generated test commitments.
  */
-export function createTestShieldCommitments (count: number, startBlock? : bigint): DBNewCommitment[] {
+function createTestShieldCommitments (count: number, startBlock? : bigint): DBNewCommitment[] {
   const shieldCommitments = new Array<DBNewCommitment>()
   for (let i = 0; i < count; ++i) {
     const tokenID = randomBytes(32)
@@ -133,7 +145,13 @@ export function createTestShieldCommitments (count: number, startBlock? : bigint
   return shieldCommitments
 }
 
-export function createTestTransactCommitments (count: number, startBlock?: bigint) {
+/**
+ * Generate a test Transact commitments.
+ * @param count - Total number of random transact commitments to generate.
+ * @param startBlock - Starting block which is incremented each time a new commitment is generated.
+ * @returns - Array of random generated test commitments.
+ */
+function createTestTransactCommitments (count: number, startBlock?: bigint) {
   const transactCommitments = new Array<DBNewCommitment>()
   for (let i = 0; i < count; ++i) {
     transactCommitments.push({
@@ -165,7 +183,13 @@ export function createTestTransactCommitments (count: number, startBlock?: bigin
   return transactCommitments
 }
 
-export function createTestUnshields (count: number, startBlock?: bigint) : DBNewUnshield[] {
+/**
+ * Create randomized unshields.
+ * @param count - Total number of random unshields to generate.
+ * @param startBlock - Starting block which is incremented each time a new commitment is generated.
+ * @returns - Array of random generated test unshields.
+ */
+function createTestUnshields (count: number, startBlock?: bigint) : DBNewUnshield[] {
   const result = new Array<DBNewUnshield>()
 
   const transactionHash = randomBytes(32)
@@ -189,7 +213,12 @@ export function createTestUnshields (count: number, startBlock?: bigint) : DBNew
   return result
 }
 
-export function shuffleArray (arr: any[]) {
+/**
+ * Randomly shuffle a given input array
+ * @param arr - Input array to shuffle
+ * @returns - Randomly shuffled input array
+ */
+function shuffleArray (arr: any[]) {
   return arr
     .map(value => ({ value, sort: Math.random() }))
     .sort((a, b) => a.sort - b.sort)
@@ -244,3 +273,5 @@ export function shuffleArray (arr: any[]) {
 //   walletCounter = 0
 //   noteCounter = 0
 // }
+
+export { createTestChainDB, createTestWalletDB, createTestNullifiers, createTestMerkleTreeLeaves, createTestShieldCommitments, createTestTransactCommitments, createTestUnshields, shuffleArray }

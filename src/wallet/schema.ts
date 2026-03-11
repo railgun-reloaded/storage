@@ -1,19 +1,18 @@
+/**
+ * Wallet database schema definitions.
+ *
+ * This file declares all tables and types used by the wallet database.  The
+ * schema is consumed by Drizzle ORM to provide type-safe queries.
+ */
 import { sql } from 'drizzle-orm'
-import { blob, customType, index, integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { blob, index, integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
-const bigint = customType<{ data: bigint; driverData: string }>({
-  dataType () {
-    return 'text'
-  },
-  toDriver (value: bigint): string {
-    return value.toString()
-  },
-  fromDriver (value: string): bigint {
-    return BigInt(value)
-  },
-})
+import { bigint } from '../chain/schema'
 
-export const wallets = sqliteTable('wallets', {
+/**
+ * Stores metadata and encrypted keys for each wallet.
+ */
+const wallets = sqliteTable('wallets', {
   id: text('id').primaryKey().notNull(),
   encryptedKeys: blob('encrypted_keys', { mode: 'buffer' }).notNull(),
   name: text('name'),
@@ -22,7 +21,11 @@ export const wallets = sqliteTable('wallets', {
     .default(sql`(unixepoch())`),
 })
 
-export const notes = sqliteTable(
+/**
+ * Stores decrypted notes owned by wallets.  Each entry records spend status
+ * and associated commitment/nullifier values.
+ */
+const notes = sqliteTable(
   'notes',
   {
     commitment: text('commitment').primaryKey().notNull(),
@@ -49,7 +52,10 @@ export const notes = sqliteTable(
   })
 )
 
-export const balances = sqliteTable(
+/**
+ * Tracks computed balances per wallet and token.
+ */
+const balances = sqliteTable(
   'balances',
   {
     walletId: text('wallet_id')
@@ -66,7 +72,10 @@ export const balances = sqliteTable(
   })
 )
 
-export const scanState = sqliteTable(
+/**
+ * Records the last scanned block height for each wallet/chain pair.
+ */
+const scanState = sqliteTable(
   'scan_state',
   {
     walletId: text('wallet_id')
@@ -83,7 +92,10 @@ export const scanState = sqliteTable(
   })
 )
 
-export const txHistory = sqliteTable(
+/**
+ * Persists transaction history events for a wallet.
+ */
+const txHistory = sqliteTable(
   'tx_history',
   {
     id: text('id').primaryKey().notNull(),
@@ -105,14 +117,20 @@ export const txHistory = sqliteTable(
   })
 )
 
-export type Wallet = typeof wallets.$inferSelect
-export type Note = typeof notes.$inferSelect
-export type Balance = typeof balances.$inferSelect
-export type ScanState = typeof scanState.$inferSelect
-export type TxHistory = typeof txHistory.$inferSelect
+type DBWallet = typeof wallets.$inferSelect
+type DBNote = typeof notes.$inferSelect
+type DBBalance = typeof balances.$inferSelect
+type DBScanState = typeof scanState.$inferSelect
+type DBTxHistory = typeof txHistory.$inferSelect
 
-export type NewWallet = typeof wallets.$inferInsert
-export type NewNote = typeof notes.$inferInsert
-export type NewBalance = typeof balances.$inferInsert
-export type NewScanState = typeof scanState.$inferInsert
-export type NewTxHistory = typeof txHistory.$inferInsert
+type DBNewWallet = typeof wallets.$inferInsert
+type DBNewNote = typeof notes.$inferInsert
+type DBNewBalance = typeof balances.$inferInsert
+type DBNewScanState = typeof scanState.$inferInsert
+type DBNewTxHistory = typeof txHistory.$inferInsert
+
+export type {
+  DBWallet, DBNote, DBBalance, DBScanState, DBTxHistory,
+  DBNewWallet, DBNewNote, DBNewBalance, DBNewScanState, DBNewTxHistory
+}
+export { wallets, txHistory, scanState, balances, notes }

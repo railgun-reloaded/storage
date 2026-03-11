@@ -1,33 +1,76 @@
+/**
+ * Chain database schema definitions.
+ *
+ * This file defines tables used to store public blockchain state, including
+ * nullifiers, commitments, Merkle trees, and sync status.  Custom types are
+ * provided to handle bigint and msgpack serialization.
+ */
 import { sql } from 'drizzle-orm'
 import { blob, check, customType, index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { pack, unpack } from 'msgpack'
-
+/**
+ * The default bigint support in SQLite does not handle range filtering
+ * correctly. For example, querying for values between `1000n` and `2000n`
+ * may perform lexicographical comparisons and miss some rows. To mitigate
+ * this, we store big integers as hexadecimal-encoded text strings.
+ */
 const bigint = customType<{ data: bigint; driverData: string }>({
+  /**
+   * Define the underling database column as text
+   * @returns - SQLite text type in string format
+   */
   dataType () {
     return 'text'
   },
+  /**
+   * Convert a JavaScript bigint to a hex‑encoded string.
+   * @param value - Input bigint value to convert.
+   * @returns Serialized hex string representation of the value.
+   */
   toDriver (value: bigint): string {
     return value.toString(16).padStart(64, '0')
   },
+  /**
+   * Convert a hex string back to a JavaScript bigint.
+   * @param value - The hex string retrieved from the SQLite table.
+   * @returns Deserialized bigint value.
+   */
   fromDriver (value: string): bigint {
     return BigInt(`0x${value}`)
   },
 })
 
 const msgpackBlob = customType<{ data: any; driverData: Buffer }>({
+/**
+ * Defines the underlying database column type as a BLOB.
+ * @returns - SQLite blob type in string format.
+ */
   dataType () {
     return 'blob'
   },
 
+  /**
+   * Converts javascript value to a MessagePack-encoded Buffer.
+   * @param value - Input application side value to serialize.
+   * @returns - The serialized MessagePack binary data.
+   */
   toDriver (value: any) {
     return pack(value)
   },
+  /**
+   * Converts the database BLOB back into its original JavaScript value.
+   * @param value - The Buffer retrieved from the SQLite BLOB column.
+   * @returns - The deserialized JavaScript object or value.
+   */
   fromDriver (value: Buffer) {
     return unpack(value)
   }
 })
 
-export const nullifiers = sqliteTable(
+/**
+ * Stores spent nullifiers observed on the chain.
+ */
+const nullifiers = sqliteTable(
   'nullifiers',
   {
     nullifier: blob('nullifier').primaryKey().notNull(),
@@ -45,7 +88,10 @@ export const nullifiers = sqliteTable(
   })
 )
 
-export const unshields = sqliteTable(
+/**
+ * Records unshield events from the chain.
+ */
+const unshields = sqliteTable(
   'unshields',
   {
     id: text('id').primaryKey(),
@@ -69,13 +115,15 @@ export const unshields = sqliteTable(
 // should be roughly 4mb, it should be loaded directly into the memory and can
 // be appended to tree without any issue. Only serialization of whole tree and
 // deserialization. Application keep tracks of duplicate, we just use table to store
-// it so that we can reconstruct it later
+// it so that we can reconstruct it later.
 //         OR
 // We can store treePosition and treeIndex of all the commitments
 // and reconstruct everytime.
-// Going with first option for now, open to argument
 
-export const merkleTrees = sqliteTable(
+/**
+ * Stores serialized Merkle tree leaf data for each tree number.
+ */
+const merkleTrees = sqliteTable(
   'merkle_trees',
   {
     treeNumber: integer('treeNumber').primaryKey().notNull(),
@@ -91,7 +139,10 @@ export const merkleTrees = sqliteTable(
 )
 
 // Chain Sync states
-export const syncState = sqliteTable(
+/**
+ * Keeps track of the last processed block height for each chain ID.
+ */
+const syncState = sqliteTable(
   'sync_states',
   {
     chainID: integer('chain_id').primaryKey().notNull(),
@@ -99,7 +150,10 @@ export const syncState = sqliteTable(
   }
 )
 
-export const commitments = sqliteTable(
+/**
+ * Stores commitment records indexed by hash.
+ */
+const commitments = sqliteTable(
   'commitments',
   {
     hash: blob('hash').primaryKey().notNull(),
@@ -122,15 +176,27 @@ export const commitments = sqliteTable(
   })
 )
 
-export type DBNullifier = typeof nullifiers.$inferSelect
-export type DBNewNulliifer = typeof nullifiers.$inferInsert
-export type DBMerkleTree = typeof merkleTrees.$inferSelect
-export type DBNewMerkleTree = typeof merkleTrees.$inferInsert
-export type DBUnshield = typeof unshields.$inferInsert
-export type DBNewUnshield = typeof unshields.$inferSelect
-export type DBCommitment = typeof commitments.$inferSelect
-export type DBNewCommitment = typeof commitments.$inferInsert
-export type DBShieldCommitment = typeof commitments.$inferSelect
+type DBNullifier = typeof nullifiers.$inferSelect
+type DBNewNulliifer = typeof nullifiers.$inferInsert
+type DBMerkleTree = typeof merkleTrees.$inferSelect
+type DBNewMerkleTree = typeof merkleTrees.$inferInsert
+type DBUnshield = typeof unshields.$inferInsert
+type DBNewUnshield = typeof unshields.$inferSelect
+type DBCommitment = typeof commitments.$inferSelect
+type DBNewCommitment = typeof commitments.$inferInsert
+
+export type {
+  DBNullifier,
+  DBNewNulliifer,
+  DBMerkleTree,
+  DBNewMerkleTree,
+  DBUnshield,
+  DBNewUnshield,
+  DBCommitment,
+  DBNewCommitment,
+}
+
+export { commitments, nullifiers, merkleTrees, unshields, syncState, bigint }
 
 // export type DBNewToken = typeof tokens.$inferInsert
 // export type DBToken = typeof tokens.$inferSelect

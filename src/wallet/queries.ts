@@ -1,7 +1,7 @@
 import { and, eq, inArray, sql } from 'drizzle-orm'
 
 import type { WalletDB } from './db'
-import type { NewNote, NewTxHistory, NewWallet } from './schema'
+import type { DBNewNote, DBNewTxHistory, DBNewWallet } from './schema'
 import {
   balances,
   notes,
@@ -10,31 +10,65 @@ import {
   wallets
 } from './schema'
 
-export function createWallet (db: WalletDB, wallet: NewWallet): string {
+/**
+ * Insert a new wallet record and return its ID.
+ * @param db - Wallet database instance.
+ * @param wallet - Data for the new wallet.
+ * @returns The `id` of the created wallet.
+ */
+function createWallet (db: WalletDB, wallet: DBNewWallet): string {
   db.insert(wallets).values(wallet).run()
   return wallet.id
 }
 
-export function getWallet (db: WalletDB, walletId: string) {
+/**
+ * Retrieve a wallet record by its ID.
+ * @param db - Wallet database instance.
+ * @param walletId - Identifier of the wallet to fetch.
+ * @returns The wallet record or `undefined` if not found.
+ */
+function getWallet (db: WalletDB, walletId: string) {
   return db.select().from(wallets).where(eq(wallets.id, walletId)).get()
 }
 
-export function listWallets (db: WalletDB) {
+/**
+ * List all wallet records in the database.
+ * @param db - Wallet database instance.
+ * @returns An array of wallet records.
+ */
+function listWallets (db: WalletDB) {
   return db.select().from(wallets).all()
 }
 
-export function deleteWallet (db: WalletDB, walletId: string): number {
+/**
+ * Delete a wallet by ID, wrapped in a transaction.
+ * @param db - Wallet database instance.
+ * @param walletId - Identifier of the wallet to delete.
+ * @returns Number of rows deleted (should be 0 or 1).
+ */
+function deleteWallet (db: WalletDB, walletId: string): number {
   return db.transaction(() => {
     const result = db.delete(wallets).where(eq(wallets.id, walletId)).run()
     return result.changes
   })
 }
 
-export function insertNote (db: WalletDB, note: NewNote): void {
+/**
+ * Insert a note into the database ignoring conflicts.
+ * @param db - Wallet database instance.
+ * @param note - Note data to insert.
+ */
+function insertNote (db: WalletDB, note: DBNewNote): void {
   db.insert(notes).values(note).onConflictDoNothing().run()
 }
 
-export function insertNotesBatch (db: WalletDB, noteList: NewNote[]): number {
+/**
+ * Batch-insert notes, ignoring conflicts.
+ * @param db - Wallet database instance.
+ * @param noteList - Array of notes to insert.
+ * @returns Number of rows inserted or updated.
+ */
+function insertNotesBatch (db: WalletDB, noteList: DBNewNote[]): number {
   if (noteList.length === 0) return 0
 
   return db.transaction(() => {
@@ -48,7 +82,13 @@ export function insertNotesBatch (db: WalletDB, noteList: NewNote[]): number {
   })
 }
 
-export function getUnspentNotes (db: WalletDB, walletId: string) {
+/**
+ * Retrieve all unspent notes for a given wallet.
+ * @param db - Wallet database instance.
+ * @param walletId - Identifier of the wallet.
+ * @returns - All the unspent notes for given walletID
+ */
+function getUnspentNotes (db: WalletDB, walletId: string) {
   return db
     .select()
     .from(notes)
@@ -56,7 +96,14 @@ export function getUnspentNotes (db: WalletDB, walletId: string) {
     .all()
 }
 
-export function getUnspentNotesByToken (
+/**
+ * Retrieve unspent notes filtered by token for a wallet.
+ * @param db - Wallet database instance.
+ * @param walletId - Identifier of the wallet.
+ * @param token - Token identifier to filter by.
+ * @returns - All the unspent notes for given walletID based on token filter
+ */
+function getUnspentNotesByToken (
   db: WalletDB,
   walletId: string,
   token: string
@@ -74,15 +121,33 @@ export function getUnspentNotesByToken (
     .all()
 }
 
-export function getNoteByCommitment (db: WalletDB, commitment: string) {
+/**
+ * Fetch a note by its commitment value.
+ * @param db - Wallet database instance.
+ * @param commitment - Commitment string to search for.
+ * @returns The note record or `undefined`.
+ */
+function getNoteByCommitment (db: WalletDB, commitment: string) {
   return db.select().from(notes).where(eq(notes.commitment, commitment)).get()
 }
 
-export function getNoteByNullifier (db: WalletDB, nullifier: string) {
+/**
+ * Fetch a note by its nullifier value.
+ * @param db - Wallet database instance.
+ * @param nullifier - Nullifier string to search for.
+ * @returns The note record or `undefined`.
+ */
+function getNoteByNullifier (db: WalletDB, nullifier: string) {
   return db.select().from(notes).where(eq(notes.nullifier, nullifier)).get()
 }
 
-export function markNoteSpent (
+/**
+ * Mark a note as spent and record the transaction ID that spent it.
+ * @param db - Wallet database instance.
+ * @param commitment - Commitment of the note to update.
+ * @param spentTxid - Transaction ID that spent the note.
+ */
+function markNoteSpent (
   db: WalletDB,
   commitment: string,
   spentTxid: string
@@ -93,7 +158,14 @@ export function markNoteSpent (
     .run()
 }
 
-export function markNotesSpentBatch (
+/**
+ * Mark multiple notes as spent in a single transaction.
+ * @param db - Wallet database instance.
+ * @param commitments - Array of note commitments to update.
+ * @param spentTxid - Transaction ID that spent the notes.
+ * @returns Number of rows updated.
+ */
+function markNotesSpentBatch (
   db: WalletDB,
   commitments: string[],
   spentTxid: string
@@ -111,11 +183,26 @@ export function markNotesSpentBatch (
   })
 }
 
-export function getAllNotes (db: WalletDB, walletId: string) {
+/**
+ * Return all notes belonging to a wallet.
+ * @param db - Wallet database instance.
+ * @param walletId - Identifier of the wallet.
+ * @returns Array of note records.
+ */
+function getAllNotes (db: WalletDB, walletId: string) {
   return db.select().from(notes).where(eq(notes.walletId, walletId)).all()
 }
 
-export function recalculateBalance (
+/**
+ * Recalculate and persist the balance for a given wallet/token pair.
+ * The function computes the sum of all unspent notes and upserts the
+ * resulting amount into the `balances` table.
+ * @param db - Wallet database instance.
+ * @param walletId - Identifier of the wallet.
+ * @param token - Token identifier.
+ * @returns The recalculated amount as a bigint.
+ */
+function recalculateBalance (
   db: WalletDB,
   walletId: string,
   token: string
@@ -147,7 +234,14 @@ export function recalculateBalance (
   })
 }
 
-export function getBalance (db: WalletDB, walletId: string, token: string) {
+/**
+ * Retrieve a stored balance for a wallet/token pair.
+ * @param db - Wallet database instance.
+ * @param walletId - Identifier of the wallet.
+ * @param token - Token identifier.
+ * @returns The balance record or `undefined`.
+ */
+function getBalance (db: WalletDB, walletId: string, token: string) {
   return db
     .select()
     .from(balances)
@@ -155,26 +249,42 @@ export function getBalance (db: WalletDB, walletId: string, token: string) {
     .get()
 }
 
-export function getAllBalances (db: WalletDB, walletId: string) {
+/**
+ * Get all balance records for a wallet.
+ * @param db - Wallet database instance.
+ * @param walletId - Identifier of the wallet.
+ * @returns Array of balance records.
+ */
+function getAllBalances (db: WalletDB, walletId: string) {
   return db.select().from(balances).where(eq(balances.walletId, walletId)).all()
 }
 
-export function recalculateAllBalances (db: WalletDB, walletId: string): void {
-  db.transaction(() => {
-    const tokens = db
-      .select({ token: notes.token })
-      .from(notes)
-      .where(eq(notes.walletId, walletId))
-      .groupBy(notes.token)
-      .all()
+/**
+ * Recompute all token balances for a wallet by iterating over its notes.
+ * @param db - Wallet database instance.
+ * @param walletId - Identifier of the wallet.
+ */
+function recalculateAllBalances (db: WalletDB, walletId: string): void {
+  const tokens = db
+    .select({ token: notes.token })
+    .from(notes)
+    .where(eq(notes.walletId, walletId))
+    .groupBy(notes.token)
+    .all()
 
-    for (const { token } of tokens) {
-      recalculateBalance(db, walletId, token)
-    }
-  })
+  for (const { token } of tokens) {
+    recalculateBalance(db, walletId, token)
+  }
 }
 
-export function getScanState (db: WalletDB, walletId: string, chainId: number) {
+/**
+ * Retrieve the scan state for a wallet on a particular chain.
+ * @param db - Wallet database instance.
+ * @param walletId - Identifier of the wallet.
+ * @param chainId - Chain identifier.
+ * @returns - Scan state for given chain for given wallet.
+ */
+function getScanState (db: WalletDB, walletId: string, chainId: number) {
   return db
     .select()
     .from(scanState)
@@ -184,7 +294,14 @@ export function getScanState (db: WalletDB, walletId: string, chainId: number) {
     .get()
 }
 
-export function updateScanState (
+/**
+ * Update or insert the scan state record for a wallet/chain pair.
+ * @param db - Wallet database instance.
+ * @param walletId - Identifier of the wallet.
+ * @param chainId - Chain identifier.
+ * @param lastScannedBlock - Latest block height scanned.
+ */
+function updateScanState (
   db: WalletDB,
   walletId: string,
   chainId: number,
@@ -199,11 +316,22 @@ export function updateScanState (
     .run()
 }
 
-export function insertTxHistory (db: WalletDB, tx: NewTxHistory): void {
+/**
+ * Add a transaction history entry, ignoring duplicates.
+ * @param db - Wallet database instance.
+ * @param tx - Transaction history record to insert.
+ */
+function insertTxHistory (db: WalletDB, tx: DBNewTxHistory): void {
   db.insert(txHistory).values(tx).onConflictDoNothing().run()
 }
 
-export function insertTxHistoryBatch (db: WalletDB, txs: NewTxHistory[]): number {
+/**
+ * Batch insert transaction history entries.
+ * @param db - Wallet database instance.
+ * @param txs - Array of transaction history records.
+ * @returns Number of rows inserted.
+ */
+function insertTxHistoryBatch (db: WalletDB, txs: DBNewTxHistory[]): number {
   if (txs.length === 0) return 0
 
   return db.transaction(() => {
@@ -217,7 +345,14 @@ export function insertTxHistoryBatch (db: WalletDB, txs: NewTxHistory[]): number
   })
 }
 
-export function getTxHistory (db: WalletDB, walletId: string, limit: number = 100) {
+/**
+ * Retrieve recent transaction history for a wallet.
+ * @param db - Wallet database instance.
+ * @param walletId - Identifier of the wallet.
+ * @param limit - Maximum number of records to return (default 100).
+ * @returns - Transaction history for given walletId with given limit.
+ */
+function getTxHistory (db: WalletDB, walletId: string, limit: number = 100) {
   return db
     .select()
     .from(txHistory)
@@ -227,11 +362,23 @@ export function getTxHistory (db: WalletDB, walletId: string, limit: number = 10
     .all()
 }
 
-export function getTxById (db: WalletDB, txId: string) {
+/**
+ * Fetch a transaction history entry by its ID.
+ * @param db - Wallet database instance.
+ * @param txId - Transaction ID to lookup.
+ * @returns The history record or `undefined`.
+ */
+function getTxById (db: WalletDB, txId: string) {
   return db.select().from(txHistory).where(eq(txHistory.id, txId)).get()
 }
 
-export function getWalletDBStats (db: WalletDB, walletId: string) {
+/**
+ * Compute basic statistics about a wallet database, such as note count.
+ * @param db - Wallet database instance.
+ * @param walletId - Identifier of the wallet.
+ * @returns - Get walletDB statistics like total notes, unspent note count, tx history count ...
+ */
+function getWalletDBStats (db: WalletDB, walletId: string) {
   const notesCount = db
     .select({ count: sql<number>`count(*)` })
     .from(notes)
@@ -262,4 +409,31 @@ export function getWalletDBStats (db: WalletDB, walletId: string) {
     balances: balancesCount?.count ?? 0,
     transactions: txHistoryCount?.count ?? 0,
   }
+}
+
+export {
+  createWallet,
+  getWallet,
+  listWallets,
+  deleteWallet,
+  insertNote,
+  insertNotesBatch,
+  getUnspentNotes,
+  getUnspentNotesByToken,
+  getNoteByCommitment,
+  getNoteByNullifier,
+  markNoteSpent,
+  markNotesSpentBatch,
+  getAllNotes,
+  recalculateBalance,
+  getBalance,
+  getAllBalances,
+  recalculateAllBalances,
+  getScanState,
+  updateScanState,
+  insertTxHistory,
+  insertTxHistoryBatch,
+  getTxHistory,
+  getTxById,
+  getWalletDBStats
 }
