@@ -4,7 +4,10 @@
 
 import crypto from 'crypto'
 
-import type { ChainDB, DBNewCommitment, DBNewNulliifer, WalletDB } from '../src/index'
+import type {
+  ChainDB, DBNewCommitment, DBNewNulliifer, DBNewUnshield,
+  WalletDB
+} from '../src/index'
 import {
   // type NewCommitment,
   // type NewMerkleNode,
@@ -96,9 +99,8 @@ export function createTestShieldCommitments (count: number, startBlock? : bigint
   const shieldCommitments = new Array<DBNewCommitment>()
   for (let i = 0; i < count; ++i) {
     const tokenID = randomBytes(32)
-    const hash = randomBytes(32)
 
-    const tokenInfo = {
+    const token = {
       tokenID,
       tokenSubID: randomBytes(32),
       tokenType: 0
@@ -108,19 +110,83 @@ export function createTestShieldCommitments (count: number, startBlock? : bigint
       transactionHash: randomBytes(32),
       blockNumber: startBlock ?? (100n + BigInt(i)),
       treeNumber: 0,
-      hash,
+      hash: randomBytes(32),
       commitmentType: CommitmentType.ShieldCommitment,
       treePosition: i,
       commitment: {
-        npk: randomBytes(32),
-        value: '1000n',
+        encryptedBundle: [
+          randomBytes(32),
+          randomBytes(32),
+          randomBytes(32)
+        ],
+        fee: null,
+        preimage: {
+          npk: randomBytes(32),
+          value: '1000n',
+          token,
+
+        },
         from: randomBytes(32),
-        tokenInfo,
-        hash
       }
     })
   }
   return shieldCommitments
+}
+
+export function createTestTransactCommitments (count: number, startBlock?: bigint) {
+  const transactCommitments = new Array<DBNewCommitment>()
+  for (let i = 0; i < count; ++i) {
+    transactCommitments.push({
+      transactionHash: randomBytes(32),
+      blockNumber: startBlock ?? (100n + BigInt(i)),
+      treeNumber: 0,
+      hash: randomBytes(32),
+      commitmentType: CommitmentType.TransactCommitment,
+      treePosition: i,
+      commitment: {
+        annotationData: randomBytes(64),
+        blindedReceiverViewingKey: randomBytes(32),
+        blindedSenderViewingKey: randomBytes(32),
+        ciphertext: {
+          data: [
+            randomBytes(32),
+            randomBytes(32),
+            randomBytes(32)
+          ],
+          iv: randomBytes(32),
+          tag: randomBytes(32)
+        },
+        memo: [
+          randomBytes(32)
+        ]
+      }
+    })
+  }
+  return transactCommitments
+}
+
+export function createTestUnshields (count: number, startBlock?: bigint) : DBNewUnshield[] {
+  const result = new Array<DBNewUnshield>()
+
+  const transactionHash = randomBytes(32)
+  for (let i = 0; i < count; ++i) {
+    result.push({
+      id: Buffer.from(transactionHash).toString('hex') + '-' + i,
+      transactionHash,
+      blockNumber: startBlock ?? (100n + BigInt(i)),
+      timestamp: 0n,
+      toAddress: randomBytes(20),
+      token: {
+        tokenID: randomBytes(32),
+        tokenSubID: randomBytes(32),
+        tokenType: 0,
+      },
+      amount: 10000n,
+      fee: 1000n,
+      eventLogIndex: i
+    })
+  }
+  return result
 }
 
 export function shuffleArray (arr: any[]) {

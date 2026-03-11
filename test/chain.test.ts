@@ -6,14 +6,16 @@ import {
   getCommitmentsByLeafRange,
   getNullifiersByBlockRange,
   getSyncState,
+  getUnshieldsByBlockRange,
   insertCommitmentBatch,
   insertNullifiersBatch,
+  insertUnshieldBatch,
   nullifierExists,
   setMerkleTree,
   updateSyncState
 } from '../src'
 
-import { createTestChainDB, createTestMerkleTreeLeaves, createTestNullifiers, createTestShieldCommitments, shuffleArray } from './utils'
+import { createTestChainDB, createTestMerkleTreeLeaves, createTestNullifiers, createTestShieldCommitments, createTestTransactCommitments, createTestUnshields, shuffleArray } from './utils'
 
 test('ChainDB: Insert nullifiers', (assert) => {
   const db = createTestChainDB()
@@ -150,16 +152,18 @@ test('ChainDB: Should insert shieldCommitments', (assert) => {
   assert.is(inserted, 8)
 })
 
-test('ChainDB: Should insert and fetch shieldCommitments', (assert) => {
+test('ChainDB: Should insert and fetch commitments', (assert) => {
   const db = createTestChainDB()
 
   const startBlock = 1000n
-  const commitments = createTestShieldCommitments(8, startBlock)
+  const shields = createTestShieldCommitments(4, startBlock)
+  const transact = createTestTransactCommitments(4, startBlock * 2n)
+  const commitments = [...shields, ...transact]
 
   const inserted = insertCommitmentBatch(db, commitments)
   assert.is(inserted, commitments.length)
 
-  const results = getCommitmentsByBlockRange(db, startBlock, startBlock + 1n)
+  const results = getCommitmentsByBlockRange(db, startBlock, startBlock * 2n)
   assert.is(results.length, commitments.length)
 
   assert.alike.coercively(results, commitments)
@@ -251,4 +255,24 @@ test('ChainDB: Should validate scan state', (assert) => {
   } else {
     assert.fail()
   }
+})
+
+test('ChainDB: Should insert and fetch unshields', (assert) => {
+  const db = createTestChainDB()
+  const unshields = createTestUnshields(5)
+  const inserted = insertUnshieldBatch(db, unshields)
+  assert.is(inserted, unshields.length)
+})
+
+test('ChainDB: Should fetch unshields by blockRange', (assert) => {
+  const db = createTestChainDB()
+
+  const startBlock = 10000n
+  const unshields = createTestUnshields(5, startBlock)
+  const inserted = insertUnshieldBatch(db, unshields)
+  assert.is(inserted, unshields.length)
+
+  const endBlock = unshields[unshields.length - 1]!.blockNumber
+  const fetched = getUnshieldsByBlockRange(db, startBlock, endBlock)
+  assert.alike.coercively(unshields, fetched)
 })

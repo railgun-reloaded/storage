@@ -2,12 +2,13 @@ import { and, eq, getTableColumns, gte, lte, sql } from 'drizzle-orm'
 import type { SQLiteTransaction } from 'drizzle-orm/sqlite-core'
 
 import type { ChainDB } from './db'
-import type { DBNewCommitment, DBNewMerkleTree, DBNewNulliifer } from './schema'
+import type { DBNewCommitment, DBNewMerkleTree, DBNewNulliifer, DBNewUnshield } from './schema'
 import {
   commitments,
   merkleTrees,
   nullifiers,
   syncState,
+  unshields,
 } from './schema'
 
 type DBContext = ChainDB | SQLiteTransaction<any, any, any, any>
@@ -178,6 +179,28 @@ export function updateSyncState (
 ): void {
   const { changes } = upsertRow(db, syncState, syncState.chainID, { chainID, lastBlockHeight })
   return changes
+}
+
+export function insertUnshieldBatch (db: DBContext, unshieldsBatch: DBNewUnshield[]) {
+  const { changes } = upsertRow(db, unshields, unshields.id, unshieldsBatch)
+  return changes
+}
+
+export function getUnshieldsByBlockRange (
+  db: ChainDB,
+  fromBlock: bigint,
+  toBlock: bigint
+) {
+  return db
+    .select()
+    .from(unshields)
+    .where(
+      and(
+        gte(unshields.blockNumber, fromBlock),
+        lte(unshields.blockNumber, toBlock)
+      )
+    )
+    .all()
 }
 
 export function runDBTransaction (db: ChainDB, callback: (tx: SQLiteTransaction<any, any, any, any>) => any): any {

@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm'
-import { blob, check, customType, index, integer, sqliteTable } from 'drizzle-orm/sqlite-core'
+import { blob, check, customType, index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { pack, unpack } from 'msgpack'
 
 const bigint = customType<{ data: bigint; driverData: string }>({
@@ -48,15 +48,16 @@ export const nullifiers = sqliteTable(
 export const unshields = sqliteTable(
   'unshields',
   {
+    id: text('id').primaryKey(),
     transactionHash: blob('transactionHash').notNull(),
     blockNumber: bigint('blockNumber').notNull(),
-    timestamp: bigint('timestamp'),
+    timestamp: bigint('timestamp').notNull(),
     toAddress: blob('toAddress').notNull(),
     // token need reference to another table
-    tokenInfo: msgpackBlob('token'),
+    token: msgpackBlob('token'),
     amount: bigint('amount').notNull(),
     fee: bigint('fee').notNull(),
-    eventLogIndex: integer('eventLogIndex')
+    eventLogIndex: integer('eventLogIndex').notNull()
   },
   (table) => ({
     // Max 20 byte check on address
