@@ -5,22 +5,36 @@
 import crypto from 'crypto'
 
 import type {
-  ChainDB, DBNewCommitment, DBNewNullifier, DBNewUnshield,
-  WalletDB
+  ChainDB, DBNewCommitment, DBNewNote, DBNewNullifier, DBNewUnshield,
+  DBNewWallet,
+  WalletDB,
 } from '../src/index'
 import {
-  // type NewCommitment,
-  // type NewMerkleNode,
-  // type NewNote,
-  // type NewNullifier,
-  // type NewWallet,
   createChainDB,
   createWalletDB
+
 } from '../src/index'
 
 enum CommitmentType {
   ShieldCommitment = 0,
   TransactCommitment = 1
+}
+
+/**
+ * Convert hex string to Uint8Array
+ * @param hex - Input hex string
+ * @returns - Output Uint8Array
+ */
+function hexToBytes (hex: string): Uint8Array {
+  if (hex.length % 2 !== 0) {
+    throw new Error('Invalid hex string')
+  }
+
+  const bytes = new Uint8Array(hex.length / 2)
+  for (let i = 0; i < bytes.length; i++) {
+    bytes[i] = parseInt(hex.substr(i * 2, 2), 16)
+  }
+  return bytes
 }
 
 /**
@@ -225,53 +239,64 @@ function shuffleArray (arr: any[]) {
     .map(({ value }) => value)
 }
 
-// let walletCounter = 0
+let walletCounter = 0
+/**
+ * Creates a test wallet record.
+ * @param overrides - Optional properties to override the default wallet fields.
+ * @returns - A newly generated test wallet
+ */
+function createTestWallet (overrides?: Partial<DBNewWallet>): DBNewWallet {
+  walletCounter++
+  return {
+    id: `wallet-${walletCounter}`,
+    encryptedKeys: Buffer.from('encrypted-keys-placeholder'),
+    name: `Test Wallet ${walletCounter}`,
+    ...overrides,
+  }
+}
 
-// /**
-//  * Creates a test wallet record.
-//  * @param overrides
-//  */
-// export function createTestWallet (overrides?: Partial<NewWallet>): NewWallet {
-//   walletCounter++
-//   return {
-//     id: `wallet-${walletCounter}`,
-//     encryptedKeys: Buffer.from('encrypted-keys-placeholder'),
-//     name: `Test Wallet ${walletCounter}`,
-//     ...overrides,
-//   }
-// }
+let noteCounter = 0
 
-// let noteCounter = 0
+/**
+ * Creates a test note record.
+ * @param overrides - Optional properties to override default note fields
+ * @returns - Generated test note
+ */
+function createTestNote (overrides?: Partial<DBNewNote>): DBNewNote {
+  noteCounter++
+  return {
+    commitment: `0x${noteCounter.toString(16).padStart(64, '0')}`,
+    walletId: 'wallet-1',
+    nullifier: hexToBytes(`0xn${noteCounter.toString(16).padStart(63, '0')}`),
+    token: '0x0000000000000000000000000000000000000000', // ETH
+    amount: 1000000000000000000n, // 1 ETH
+    spent: false,
+    blockNumber: 1000n + BigInt(noteCounter),
+    treeNumber: 0,
+    treePosition: noteCounter,
+    ...overrides,
+  }
+}
 
-// /**
-//  * Creates a test note record.
-//  * @param overrides
-//  */
-// export function createTestNote (overrides?: Partial<NewNote>): NewNote {
-//   noteCounter++
-//   return {
-//     commitment: `0x${noteCounter.toString(16).padStart(64, '0')}`,
-//     walletId: 'wallet-1',
-//     nullifier: `0xn${noteCounter.toString(16).padStart(63, '0')}`,
-//     token: '0x0000000000000000000000000000000000000000', // ETH
-//     amount: 1000000000000000000n, // 1 ETH
-//     spent: false,
-//     blockNumber: 1000n + BigInt(noteCounter),
-//     treeId: 0,
-//     leafIndex: BigInt(noteCounter),
-//     ...overrides,
-//   }
-// }
+/**
+ * Resets test counters (for test isolation).
+ */
+function resetTestCounters (): void {
+  walletCounter = 0
+  noteCounter = 0
+}
 
-// /**
-//  * Resets test counters (for test isolation).
-//  */
-// export function resetTestCounters (): void {
-//   nullifierCounter = 0
-//   nodeCounter = 0
-//   commitmentCounter = 0
-//   walletCounter = 0
-//   noteCounter = 0
-// }
-
-export { createTestChainDB, createTestWalletDB, createTestNullifiers, createTestMerkleTreeLeaves, createTestShieldCommitments, createTestTransactCommitments, createTestUnshields, shuffleArray }
+export {
+  createTestChainDB,
+  createTestWalletDB,
+  createTestNullifiers,
+  createTestMerkleTreeLeaves,
+  createTestShieldCommitments,
+  createTestTransactCommitments,
+  createTestUnshields,
+  shuffleArray,
+  createTestWallet,
+  createTestNote,
+  resetTestCounters,
+  hexToBytes
+}

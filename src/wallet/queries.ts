@@ -127,7 +127,7 @@ function getUnspentNotesByToken (
  * @param commitment - Commitment string to search for.
  * @returns The note record or `undefined`.
  */
-function getNoteByCommitment (db: WalletDB, commitment: string) {
+function getNoteByCommitment (db: WalletDB, commitment: Uint8Array) {
   return db.select().from(notes).where(eq(notes.commitment, commitment)).get()
 }
 
@@ -137,7 +137,7 @@ function getNoteByCommitment (db: WalletDB, commitment: string) {
  * @param nullifier - Nullifier string to search for.
  * @returns The note record or `undefined`.
  */
-function getNoteByNullifier (db: WalletDB, nullifier: string) {
+function getNoteByNullifier (db: WalletDB, nullifier: Uint8Array) {
   return db.select().from(notes).where(eq(notes.nullifier, nullifier)).get()
 }
 
@@ -149,8 +149,8 @@ function getNoteByNullifier (db: WalletDB, nullifier: string) {
  */
 function markNoteSpent (
   db: WalletDB,
-  commitment: string,
-  spentTxid: string
+  commitment: Uint8Array,
+  spentTxid: Uint8Array
 ): void {
   db.update(notes)
     .set({ spent: true, spentTxid })
@@ -167,8 +167,8 @@ function markNoteSpent (
  */
 function markNotesSpentBatch (
   db: WalletDB,
-  commitments: string[],
-  spentTxid: string
+  commitments: Uint8Array[],
+  spentTxid: Uint8Array
 ): number {
   if (commitments.length === 0) return 0
 
@@ -207,9 +207,11 @@ function recalculateBalance (
   walletId: string,
   token: string
 ): bigint {
+  // Amount is internally stored as text (custom bigint type) and sqlite has limitation
+  // of 64 bit Integer sum, we cannot apply SUM operation here
   return db.transaction(() => {
     const result = db
-      .select({ total: sql<string>`COALESCE(SUM(${notes.amount}), '0')` })
+      .select({ amount: notes.amount })
       .from(notes)
       .where(
         and(
@@ -218,10 +220,9 @@ function recalculateBalance (
           eq(notes.spent, false)
         )
       )
-      .get()
+      .all()
 
-    const amount = BigInt(result?.total ?? '0')
-
+    const amount = result.reduce((sum, row) => sum + row.amount, 0n)
     db.insert(balances)
       .values({ walletId, token, amount })
       .onConflictDoUpdate({

@@ -14,7 +14,7 @@ import { bigint } from '../chain/schema'
  */
 const wallets = sqliteTable('wallets', {
   id: text('id').primaryKey().notNull(),
-  encryptedKeys: blob('encrypted_keys', { mode: 'buffer' }).notNull(),
+  encryptedKeys: blob('encrypted_keys').notNull(),
   name: text('name'),
   createdAt: integer('created_at', { mode: 'timestamp' })
     .notNull()
@@ -28,18 +28,18 @@ const wallets = sqliteTable('wallets', {
 const notes = sqliteTable(
   'notes',
   {
-    commitment: text('commitment').primaryKey().notNull(),
+    commitment: blob('commitment').primaryKey().notNull(),
     walletId: text('wallet_id')
       .notNull()
       .references(() => wallets.id, { onDelete: 'cascade' }),
-    nullifier: text('nullifier').notNull().unique(),
+    nullifier: blob('nullifier').notNull().unique(),
     token: text('token').notNull(),
     amount: bigint('amount').notNull(),
     spent: integer('spent', { mode: 'boolean' }).notNull().default(false),
-    spentTxid: text('spent_txid'),
+    spentTxid: blob('spent_txid'),
     blockNumber: bigint('block_number').notNull(),
-    treeId: integer('tree_id').notNull(),
-    leafIndex: bigint('leaf_index').notNull(),
+    treeNumber: integer('tree_id').notNull(),
+    treePosition: integer('leaf_index').notNull(),
     decryptedAt: integer('decrypted_at', { mode: 'timestamp' })
       .notNull()
       .default(sql`(unixepoch())`),
@@ -48,7 +48,7 @@ const notes = sqliteTable(
     walletSpentIdx: index('notes_wallet_spent_idx').on(table.walletId, table.spent),
     walletTokenIdx: index('notes_wallet_token_idx').on(table.walletId, table.token),
     nullifierIdx: index('notes_nullifier_idx').on(table.nullifier),
-    treeLeafIdx: index('notes_tree_leaf_idx').on(table.treeId, table.leafIndex),
+    treeLeafIdx: index('notes_tree_leaf_idx').on(table.treeNumber, table.treePosition),
   })
 )
 

@@ -24,6 +24,7 @@ interface WalletDB extends BetterSQLite3Database<typeof schema> {
   $client: Database.Database;
 }
 
+const DEFAULT_WALLET_MIGRATION_FOLDER = './drizzle/wallet'
 /**
  * Create and configure a wallet database instance.
  * @param config - Options controlling database path, pragmas, migrations, and
@@ -33,9 +34,9 @@ interface WalletDB extends BetterSQLite3Database<typeof schema> {
 function createWalletDB (config: WalletDBConfig): WalletDB {
   const {
     path,
-    enableWAL = path !== ':memory:',
+    enableWAL,
     runMigrations = true,
-    migrationsFolder = './drizzle/wallet',
+    migrationsFolder,
     verbose = false,
     encryptionKey,
   } = config
@@ -48,14 +49,15 @@ function createWalletDB (config: WalletDBConfig): WalletDB {
     console.warn('SQLCipher encryption not yet implemented')
   }
 
-  configurePragmas(sqlite, enableWAL)
+  configurePragmas(sqlite, enableWAL || false)
 
   const db = drizzle(sqlite, { schema }) as WalletDB
   db.$client = sqlite
 
-  if (runMigrations && path !== ':memory:') {
+  if (runMigrations) {
+    const migrationFilePath = migrationsFolder ?? DEFAULT_WALLET_MIGRATION_FOLDER
     try {
-      migrate(db, { migrationsFolder })
+      migrate(db, { migrationsFolder: migrationFilePath })
       if (verbose) {
         console.log(`Wallet database migrations applied: ${path}`)
       }

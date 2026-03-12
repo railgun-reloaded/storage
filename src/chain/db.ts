@@ -20,7 +20,7 @@ interface ChainDB extends BetterSQLite3Database<typeof schema> {
   $client: Database.Database;
 }
 
-const DEFAULT_MIGRATION_FOLDER = './drizzle/chain'
+const DEFAULT_CHAIN_MIGRATION_FOLDER = './drizzle/chain'
 /**
  * Create a Drizzle SQLite database for storing chain events.
  * SQLite methods are synchronous, so callers do not need to await operations.
@@ -46,8 +46,8 @@ function createChainDB (config: ChainDBConfig): ChainDB {
   db.$client = sqlite
 
   if (runMigrations) {
+    const migrationFilePath = migrationsFolder ?? DEFAULT_CHAIN_MIGRATION_FOLDER
     try {
-      const migrationFilePath = migrationsFolder ?? DEFAULT_MIGRATION_FOLDER
       migrate(db, { migrationsFolder: migrationFilePath })
       if (verbose) {
         console.log(`Chain database migrations applied: ${path}`)

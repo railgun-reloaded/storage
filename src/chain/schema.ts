@@ -44,6 +44,7 @@ extensionCodec.register({
  * correctly. For example, querying for values between `1000n` and `2000n`
  * may perform lexicographical comparisons and miss some rows. To mitigate
  * this, we store big integers as hexadecimal-encoded text strings.
+ * However sum operation are limited to only (64 bit integer) in sqlite.
  */
 const bigint = customType<{ data: bigint; driverData: string }>({
   /**
