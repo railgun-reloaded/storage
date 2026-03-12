@@ -2,7 +2,7 @@ import { and, asc, eq, getTableColumns, gte, lte, sql } from 'drizzle-orm'
 import type { SQLiteTransaction } from 'drizzle-orm/sqlite-core'
 
 import type { ChainDB } from './db'
-import type { DBNewCommitment, DBNewMerkleTree, DBNewNulliifer, DBNewUnshield } from './schema'
+import type { DBNewCommitment, DBNewMerkleTree, DBNewNullifier, DBNewUnshield } from './schema'
 import {
   commitments,
   merkleTrees,
@@ -63,9 +63,9 @@ function nullifierExists (db: ChainDB, nullifier: Uint8Array): boolean {
  * @param nullifierBatch - Array of nullifiers to insert.
  * @returns The number of rows changed.
  */
-function insertNullifiersBatch (db: DBContext, nullifierBatch: DBNewNulliifer[]): number {
+function insertNullifiersBatch (db: DBContext, nullifierBatch: DBNewNullifier[]): number {
   if (nullifierBatch.length === 0) return 0
-  const { changes } = upsertRow<DBNewNulliifer>(db, nullifiers, nullifiers.nullifier, nullifierBatch)
+  const { changes } = upsertRow<DBNewNullifier>(db, nullifiers, nullifiers.nullifier, nullifierBatch)
   return changes
 }
 
@@ -254,7 +254,7 @@ function updateSyncState (
   db: DBContext,
   chainID: number,
   lastBlockHeight: bigint
-): void {
+) {
   const { changes } = upsertRow(db, syncState, syncState.chainID, { chainID, lastBlockHeight })
   return changes
 }

@@ -81,7 +81,7 @@ const nullifiers = sqliteTable(
     treeNumber: integer('tree_number').notNull()
   },
   (table) => ({
-    blockNumberIndex: index('nullifers_block_number_index').on(table.blockNumber),
+    blockNumberIndex: index('nullifiers_block_number_index').on(table.blockNumber),
     treeNumberIndex: index('nullifiers_tree_number_index').on(table.treeNumber),
     // Optional 32 bytes constraint on nullifier
     nullifierSizeCheck: check('nullifier_size_check', sql`length(${table.nullifier}) = 32`)
@@ -177,17 +177,17 @@ const commitments = sqliteTable(
 )
 
 type DBNullifier = typeof nullifiers.$inferSelect
-type DBNewNulliifer = typeof nullifiers.$inferInsert
+type DBNewNullifier = typeof nullifiers.$inferInsert
 type DBMerkleTree = typeof merkleTrees.$inferSelect
 type DBNewMerkleTree = typeof merkleTrees.$inferInsert
-type DBUnshield = typeof unshields.$inferInsert
-type DBNewUnshield = typeof unshields.$inferSelect
+type DBUnshield = typeof unshields.$inferSelect
+type DBNewUnshield = typeof unshields.$inferInsert
 type DBCommitment = typeof commitments.$inferSelect
 type DBNewCommitment = typeof commitments.$inferInsert
 
 export type {
   DBNullifier,
-  DBNewNulliifer,
+  DBNewNullifier,
   DBMerkleTree,
   DBNewMerkleTree,
   DBUnshield,

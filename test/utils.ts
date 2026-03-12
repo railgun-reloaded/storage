@@ -5,7 +5,7 @@
 import crypto from 'crypto'
 
 import type {
-  ChainDB, DBNewCommitment, DBNewNulliifer, DBNewUnshield,
+  ChainDB, DBNewCommitment, DBNewNullifier, DBNewUnshield,
   WalletDB
 } from '../src/index'
 import {
@@ -75,7 +75,7 @@ function createTestWalletDB (): WalletDB {
  * @param startBlock - Optionally specify the starting block of nullifiers
  * @returns - Array of random generated test nullifiers
  */
-function createTestNullifiers (count: number, startBlock?: bigint): DBNewNulliifer[] {
+function createTestNullifiers (count: number, startBlock?: bigint): DBNewNullifier[] {
   const result = []
   for (let i = 0; i < count; ++i) {
     result.push({
