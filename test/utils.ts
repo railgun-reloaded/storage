@@ -131,10 +131,10 @@ function createTestShieldCommitments (count: number, startBlock? : bigint): DBNe
           randomBytes(32),
           randomBytes(32)
         ],
-        fee: null,
+        fee: 1000n,
         preimage: {
           npk: randomBytes(32),
-          value: '1000n',
+          value: 1000n,
           token,
 
         },

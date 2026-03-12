@@ -5,9 +5,40 @@
  * nullifiers, commitments, Merkle trees, and sync status.  Custom types are
  * provided to handle bigint and msgpack serialization.
  */
+import { DecodeError, ExtensionCodec, decode, encode } from '@msgpack/msgpack'
 import { sql } from 'drizzle-orm'
 import { blob, check, customType, index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
-import { pack, unpack } from 'msgpack'
+
+const BIGINT_EXT_TYPE = 0
+const extensionCodec = new ExtensionCodec()
+extensionCodec.register({
+  type: BIGINT_EXT_TYPE,
+  /**
+   * Encode input bigint value to Uint8Array
+   * @param input - Input value to encode
+   * @returns - Encoded string representation of bigint
+   */
+  encode (input: unknown) : Uint8Array | null {
+    if (typeof input === 'bigint') {
+      return encode(input.toString())
+    } else {
+      return null
+    }
+  },
+  /**
+   * Decode input Uint8Array to bigint
+   * @param value - Input Uint8Array to decode
+   * @returns -  Decoded bigint value
+   */
+  decode (value: Uint8Array) : bigint {
+    const val = decode(value)
+    if (typeof val !== 'string') {
+      throw new DecodeError('Unexpected BigInt source')
+    }
+    return BigInt(val)
+  }
+})
+
 /**
  * The default bigint support in SQLite does not handle range filtering
  * correctly. For example, querying for values between `1000n` and `2000n`
@@ -55,7 +86,7 @@ const msgpackBlob = customType<{ data: any; driverData: Buffer }>({
    * @returns - The serialized MessagePack binary data.
    */
   toDriver (value: any) {
-    return pack(value)
+    return Buffer.from(encode(value, { extensionCodec }))
   },
   /**
    * Converts the database BLOB back into its original JavaScript value.
@@ -63,7 +94,7 @@ const msgpackBlob = customType<{ data: any; driverData: Buffer }>({
    * @returns - The deserialized JavaScript object or value.
    */
   fromDriver (value: Buffer) {
-    return unpack(value)
+    return decode(value, { extensionCodec })
   }
 })
 
