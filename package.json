@@ -5,11 +5,11 @@
   "main": "./src/index.js",
   "types": "./src/index.d.ts",
   "scripts": {
-    "build": "tsc --build",
+    "build": "npm run db:generate && tsc --build",
     "clean": "tsc --build --clean",
     "lint": "eslint",
     "lint:fix": "eslint --fix",
-    "pretest": "npm run build && npm run db:generate",
+    "pretest": "npm run build",
     "test": "NODE_OPTIONS=--enable-source-maps brittle test/**/*.js",
     "db:generate:chain": "drizzle-kit generate --config=config/drizzle.chain.config.ts",
     "db:generate:wallet": "drizzle-kit generate --config=config/drizzle.wallet.config.ts",

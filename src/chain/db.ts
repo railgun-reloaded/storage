@@ -1,3 +1,6 @@
+import fs from 'fs'
+import path from 'path'
+
 import Database from 'better-sqlite3'
 import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
@@ -29,14 +32,20 @@ const DEFAULT_CHAIN_MIGRATION_FOLDER = './drizzle/chain'
  */
 function createChainDB (config: ChainDBConfig): ChainDB {
   const {
-    path,
+    path: dbPath,
     enableWAL,
     runMigrations,
     migrationsFolder,
     verbose,
   } = config
 
-  const sqlite = new Database(path, {
+  let dbExists = false
+  if (dbPath !== ':memory:') {
+    const fullPath = path.resolve(process.cwd(), dbPath)
+    dbExists = fs.existsSync(fullPath)
+  }
+
+  const sqlite = new Database(dbPath, {
     verbose: verbose ? console.log : undefined,
   })
 
@@ -44,9 +53,20 @@ function createChainDB (config: ChainDBConfig): ChainDB {
 
   const db = drizzle(sqlite, { schema }) as ChainDB
   db.$client = sqlite
-
-  if (runMigrations) {
-    const migrationFilePath = migrationsFolder ?? DEFAULT_CHAIN_MIGRATION_FOLDER
+  /**
+   * Drizzle tables need to be migrated when the database is created for the first time.
+   * When we build storage package, the schema should be generated in drizzle/ folder.
+   */
+  if (!dbExists || runMigrations) {
+    let migrationFilePath = migrationsFolder ?? DEFAULT_CHAIN_MIGRATION_FOLDER
+    /**
+     * We try to locate the drizzle/ folder relative to this package, instead of
+     * package that include it as it's dependency. This prevent us from making drizzle/ (schema)
+     * folder in our wallet sdk. It automatically migrate it if it is created for the first time
+     * or if we explicitly enable migration.
+     */
+    migrationFilePath = path.resolve(__dirname, '../../', migrationFilePath)
+    console.log('Miragion', migrationFilePath)
     try {
       migrate(db, { migrationsFolder: migrationFilePath })
       if (verbose) {
