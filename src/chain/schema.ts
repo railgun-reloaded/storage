@@ -7,7 +7,7 @@
  */
 import { DecodeError, ExtensionCodec, decode, encode } from '@msgpack/msgpack'
 import { sql } from 'drizzle-orm'
-import { blob, check, customType, index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { blob, check, customType, index, integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
 const BIGINT_EXT_TYPE = 0
 const extensionCodec = new ExtensionCodec()
@@ -105,7 +105,7 @@ const msgpackBlob = customType<{ data: any; driverData: Buffer }>({
 const nullifiers = sqliteTable(
   'nullifiers',
   {
-    nullifier: blob('nullifier').primaryKey().notNull(),
+    nullifier: blob('nullifier').notNull(),
     // Optional
     transactionHash: blob('transaction_hash').notNull(),
     // Optional
@@ -116,7 +116,8 @@ const nullifiers = sqliteTable(
     blockNumberIndex: index('nullifiers_block_number_index').on(table.blockNumber),
     treeNumberIndex: index('nullifiers_tree_number_index').on(table.treeNumber),
     // Optional 32 bytes constraint on nullifier
-    nullifierSizeCheck: check('nullifier_size_check', sql`length(${table.nullifier}) = 32`)
+    nullifierSizeCheck: check('nullifier_size_check', sql`length(${table.nullifier}) = 32`),
+    pk: primaryKey({ columns: [table.nullifier, table.treeNumber] }),
   })
 )
 

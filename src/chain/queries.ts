@@ -65,7 +65,7 @@ function nullifierExists (db: ChainDB, nullifier: Uint8Array): boolean {
  */
 function insertNullifiersBatch (db: DBContext, nullifierBatch: DBNewNullifier[]): number {
   if (nullifierBatch.length === 0) return 0
-  const { changes } = upsertRow<DBNewNullifier>(db, nullifiers, nullifiers.nullifier, nullifierBatch)
+  const { changes } = upsertRow<DBNewNullifier>(db, nullifiers, [nullifiers.nullifier, nullifiers.treeNumber], nullifierBatch)
   return changes
 }
 
