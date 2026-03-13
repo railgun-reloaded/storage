@@ -66,7 +66,6 @@ function createChainDB (config: ChainDBConfig): ChainDB {
      * or if we explicitly enable migration.
      */
     migrationFilePath = path.resolve(__dirname, '../../', migrationFilePath)
-    console.log('Miragion', migrationFilePath)
     try {
       migrate(db, { migrationsFolder: migrationFilePath })
       if (verbose) {

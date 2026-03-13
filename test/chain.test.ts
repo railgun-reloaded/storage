@@ -35,6 +35,21 @@ test('ChainDB: Should insert and fetch same nullifiers', (assert) => {
   assert.alike.coercively(nullifiersBatch, fetchedNullifiers)
 })
 
+test.solo('ChainDB: Should insert duplicate nullifiers with different treeNumber', (assert) => {
+  const db = createTestChainDB()
+  const startBlock = 100n
+  const nullifiersBatch = createTestNullifiers(1, 100n)
+  let inserted = insertNullifiersBatch(db, nullifiersBatch)
+  assert.is(inserted, 1)
+
+  nullifiersBatch[0]!.treeNumber = 1
+  inserted = insertNullifiersBatch(db, nullifiersBatch)
+  assert.is(inserted, 1)
+
+  const fetchedNullifiers = getNullifiersByBlockRange(db, startBlock, startBlock + 10n)
+  assert.is(fetchedNullifiers.length, 2)
+})
+
 test('ChainDB: Should insert and check it exists', (assert) => {
   const db = createTestChainDB()
   const nullifiersBatch = createTestNullifiers(4)
