@@ -144,17 +144,8 @@ const unshields = sqliteTable(
   })
 )
 
-// We have two choices here, either we can store whole tree as a uint8Array, which
-// should be roughly 4mb, it should be loaded directly into the memory and can
-// be appended to tree without any issue. Only serialization of whole tree and
-// deserialization. Application keep tracks of duplicate, we just use table to store
-// it so that we can reconstruct it later.
-//         OR
-// We can store treePosition and treeIndex of all the commitments
-// and reconstruct everytime.
-
 /**
- * Stores serialized Merkle tree leaf data for each tree number.
+ * Stores serialized Merkle tree
  */
 const merkleTrees = sqliteTable(
   'merkle_trees',
@@ -165,9 +156,9 @@ const merkleTrees = sqliteTable(
     leafCount: integer('leafCount').notNull()
   },
   (table) => ({
-    // Total memory for leaves (bytes)= 65536 * 32 //
-    leavesSizeCheck: check('hashes_size_check', sql`length(${table.leaves}) = 2097152`),
-    leafCountCheck: check('leaf_count_check', sql`${table.leafCount} <= 65536`)
+    // Total memory for merkleTree (bytes)= 65536 * 32 + 65535 * 32
+    leavesSizeCheck: check('merkle_tree_element_byte_size_check', sql`length(${table.leaves}) = 4194272`),
+    leafCountCheck: check('merkle_tree_leaf_count_check', sql`${table.leafCount} <= 65536`)
   })
 )
 

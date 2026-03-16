@@ -15,7 +15,15 @@ import {
   updateSyncState
 } from '../src'
 
-import { createTestChainDB, createTestMerkleTreeLeaves, createTestNullifiers, createTestShieldCommitments, createTestTransactCommitments, createTestUnshields, shuffleArray } from './utils'
+import {
+  createTestChainDB,
+  createTestMerkleTree,
+  createTestNullifiers,
+  createTestShieldCommitments,
+  createTestTransactCommitments,
+  createTestUnshields,
+  shuffleArray
+} from './utils'
 
 test('ChainDB: Insert nullifiers', (assert) => {
   const db = createTestChainDB()
@@ -126,7 +134,7 @@ test('ChainDB: Should delete nullifier greater than given block', (assert) => {
 
 test('ChainDB: Should insert merkletree', (assert) => {
   const db = createTestChainDB()
-  const leaves = createTestMerkleTreeLeaves()
+  const leaves = createTestMerkleTree()
   const changes = setMerkleTree(db, {
     treeNumber: 0,
     leaves,
@@ -149,7 +157,7 @@ test('ChainDB: Should throw on invalid merkletree insert', (assert) => {
 
 test('ChainDB: Should throw on invalid merkletree leafCount', (assert) => {
   const db = createTestChainDB()
-  const leaves = createTestMerkleTreeLeaves()
+  const leaves = createTestMerkleTree()
   assert.exception(() => {
     setMerkleTree(db, {
       treeNumber: 0,

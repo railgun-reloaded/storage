@@ -107,12 +107,13 @@ function createTestNullifiers (count: number, startBlock?: bigint): DBNewNullifi
  * are generated and kept in single Uint8Array
  * @returns - random merkleTree leaves stored in Uint8Array
  */
-function createTestMerkleTreeLeaves () {
-  const leaves = new Uint8Array(65536 * 32)
+function createTestMerkleTree () {
+  const totalNodes = 65536 + 65535
+  const tree = new Uint8Array(totalNodes * 32)
   for (let i = 0; i < 65536; ++i) {
-    leaves.set(randomBytes(32), i * 32)
+    tree.set(randomBytes(32), i * 32)
   }
-  return leaves
+  return tree
 }
 
 /**
@@ -289,7 +290,7 @@ export {
   createTestChainDB,
   createTestWalletDB,
   createTestNullifiers,
-  createTestMerkleTreeLeaves,
+  createTestMerkleTree,
   createTestShieldCommitments,
   createTestTransactCommitments,
   createTestUnshields,
