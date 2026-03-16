@@ -209,7 +209,6 @@ function createTestUnshields (count: number, startBlock?: bigint) : DBNewUnshiel
   const transactionHash = randomBytes(32)
   for (let i = 0; i < count; ++i) {
     result.push({
-      id: Buffer.from(transactionHash).toString('hex') + '-' + i,
       transactionHash,
       blockNumber: startBlock ?? (100n + BigInt(i)),
       timestamp: 0n,

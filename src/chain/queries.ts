@@ -46,13 +46,17 @@ function upsertRow<T extends Record<string, unknown>> (
  * Determine whether a given nullifier exists in the table.
  * @param db - Chain database instance.
  * @param nullifier - The nullifier value to look up.
+ * @param treeNumber - Tree Number of nullifier
  * @returns `true` if the nullifier is present, otherwise `false`.
  */
-function nullifierExists (db: ChainDB, nullifier: Uint8Array): boolean {
+function nullifierExists (db: ChainDB, nullifier: Uint8Array, treeNumber: number): boolean {
   const result = db
     .select()
     .from(nullifiers)
-    .where(eq(nullifiers.nullifier, nullifier))
+    .where(and(
+      eq(nullifiers.nullifier, nullifier),
+      eq(nullifiers.treeNumber, treeNumber)
+    ))
     .get()
   return result !== undefined
 }
@@ -266,7 +270,7 @@ function updateSyncState (
  * @returns Number of rows changed.
  */
 function insertUnshieldBatch (db: DBContext, unshieldsBatch: DBNewUnshield[]) {
-  const { changes } = upsertRow(db, unshields, unshields.id, unshieldsBatch)
+  const { changes } = upsertRow(db, unshields, [unshields.transactionHash, unshields.eventLogIndex], unshieldsBatch)
   return changes
 }
 

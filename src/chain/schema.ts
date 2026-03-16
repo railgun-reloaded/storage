@@ -7,7 +7,7 @@
  */
 import { DecodeError, ExtensionCodec, decode, encode } from '@msgpack/msgpack'
 import { sql } from 'drizzle-orm'
-import { blob, check, customType, index, integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { blob, check, customType, index, integer, primaryKey, sqliteTable } from 'drizzle-orm/sqlite-core'
 
 const BIGINT_EXT_TYPE = 0
 const extensionCodec = new ExtensionCodec()
@@ -127,7 +127,6 @@ const nullifiers = sqliteTable(
 const unshields = sqliteTable(
   'unshields',
   {
-    id: text('id').primaryKey(),
     transactionHash: blob('transactionHash').notNull(),
     blockNumber: bigint('blockNumber').notNull(),
     timestamp: bigint('timestamp').notNull(),
@@ -140,7 +139,8 @@ const unshields = sqliteTable(
   },
   (table) => ({
     // Max 20 byte check on address
-    toAddressCheck: check('to_address_check', sql`length(${table.toAddress}) <= 20`)
+    toAddressCheck: check('to_address_check', sql`length(${table.toAddress}) <= 20`),
+    pk: primaryKey({ columns: [table.transactionHash, table.eventLogIndex] })
   })
 )
 

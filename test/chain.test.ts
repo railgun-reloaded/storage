@@ -35,7 +35,7 @@ test('ChainDB: Should insert and fetch same nullifiers', (assert) => {
   assert.alike.coercively(nullifiersBatch, fetchedNullifiers)
 })
 
-test.solo('ChainDB: Should insert duplicate nullifiers with different treeNumber', (assert) => {
+test('ChainDB: Should insert duplicate nullifiers with different treeNumber', (assert) => {
   const db = createTestChainDB()
   const startBlock = 100n
   const nullifiersBatch = createTestNullifiers(1, 100n)
@@ -56,8 +56,8 @@ test('ChainDB: Should insert and check it exists', (assert) => {
   const changes = insertNullifiersBatch(db, nullifiersBatch)
   assert.is(changes, nullifiersBatch.length)
 
-  for (const { nullifier } of nullifiersBatch) {
-    assert.ok(nullifierExists(db, nullifier as Uint8Array))
+  for (const { nullifier, treeNumber } of nullifiersBatch) {
+    assert.ok(nullifierExists(db, nullifier as Uint8Array, treeNumber))
   }
 })
 
@@ -114,13 +114,13 @@ test('ChainDB: Should delete nullifier greater than given block', (assert) => {
   const changes = insertNullifiersBatch(db, nullifiers)
   assert.is(changes, 1)
 
-  let exists = nullifierExists(db, nullifiers[0]!.nullifier as Uint8Array)
+  let exists = nullifierExists(db, nullifiers[0]!.nullifier as Uint8Array, nullifiers[0]!.treeNumber)
   assert.is(exists, true)
 
   const deleted = deleteNullifiersFromBlock(db, nullifiers[0]!.blockNumber)
   assert.is(deleted, 1)
 
-  exists = nullifierExists(db, nullifiers[0]!.nullifier as Uint8Array)
+  exists = nullifierExists(db, nullifiers[0]!.nullifier as Uint8Array, nullifiers[0]!.treeNumber)
   assert.is(exists, false)
 })
 
