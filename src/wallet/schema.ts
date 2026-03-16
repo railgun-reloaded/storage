@@ -5,16 +5,16 @@
  * schema is consumed by Drizzle ORM to provide type-safe queries.
  */
 import { sql } from 'drizzle-orm'
-import { blob, index, integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { index, integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
-import { bigint } from '../chain/schema'
+import { bigint, uint8Array } from '../types/custom-types'
 
 /**
  * Stores metadata and encrypted keys for each wallet.
  */
 const wallets = sqliteTable('wallets', {
   id: text('id').primaryKey().notNull(),
-  encryptedKeys: blob('encrypted_keys').notNull(),
+  encryptedKeys: uint8Array('encrypted_keys').notNull(),
   name: text('name'),
   createdAt: integer('created_at', { mode: 'timestamp' })
     .notNull()
@@ -28,15 +28,15 @@ const wallets = sqliteTable('wallets', {
 const notes = sqliteTable(
   'notes',
   {
-    commitment: blob('commitment').primaryKey().notNull(),
+    commitment: uint8Array('commitment').primaryKey().notNull(),
     walletId: text('wallet_id')
       .notNull()
       .references(() => wallets.id, { onDelete: 'cascade' }),
-    nullifier: blob('nullifier').notNull().unique(),
+    nullifier: uint8Array('nullifier').notNull().unique(),
     token: text('token').notNull(),
     amount: bigint('amount').notNull(),
     spent: integer('spent', { mode: 'boolean' }).notNull().default(false),
-    spentTxid: blob('spent_txid'),
+    spentTxid: uint8Array('spent_txid'),
     blockNumber: bigint('block_number').notNull(),
     treeNumber: integer('tree_id').notNull(),
     treePosition: integer('leaf_index').notNull(),

@@ -5,109 +5,19 @@
  * nullifiers, commitments, Merkle trees, and sync status.  Custom types are
  * provided to handle bigint and msgpack serialization.
  */
-import { DecodeError, ExtensionCodec, decode, encode } from '@msgpack/msgpack'
 import { sql } from 'drizzle-orm'
-import { blob, check, customType, index, integer, primaryKey, sqliteTable } from 'drizzle-orm/sqlite-core'
+import { check, index, integer, primaryKey, sqliteTable } from 'drizzle-orm/sqlite-core'
 
-const BIGINT_EXT_TYPE = 0
-const extensionCodec = new ExtensionCodec()
-extensionCodec.register({
-  type: BIGINT_EXT_TYPE,
-  /**
-   * Encode input bigint value to Uint8Array
-   * @param input - Input value to encode
-   * @returns - Encoded string representation of bigint
-   */
-  encode (input: unknown) : Uint8Array | null {
-    if (typeof input === 'bigint') {
-      return encode(input.toString())
-    } else {
-      return null
-    }
-  },
-  /**
-   * Decode input Uint8Array to bigint
-   * @param value - Input Uint8Array to decode
-   * @returns -  Decoded bigint value
-   */
-  decode (value: Uint8Array) : bigint {
-    const val = decode(value)
-    if (typeof val !== 'string') {
-      throw new DecodeError('Unexpected BigInt source')
-    }
-    return BigInt(val)
-  }
-})
-
-/**
- * The default bigint support in SQLite does not handle range filtering
- * correctly. For example, querying for values between `1000n` and `2000n`
- * may perform lexicographical comparisons and miss some rows. To mitigate
- * this, we store big integers as hexadecimal-encoded text strings.
- * However sum operation are limited to only (64 bit integer) in sqlite.
- */
-const bigint = customType<{ data: bigint; driverData: string }>({
-  /**
-   * Define the underling database column as text
-   * @returns - SQLite text type in string format
-   */
-  dataType () {
-    return 'text'
-  },
-  /**
-   * Convert a JavaScript bigint to a hex‑encoded string.
-   * @param value - Input bigint value to convert.
-   * @returns Serialized hex string representation of the value.
-   */
-  toDriver (value: bigint): string {
-    return value.toString(16).padStart(64, '0')
-  },
-  /**
-   * Convert a hex string back to a JavaScript bigint.
-   * @param value - The hex string retrieved from the SQLite table.
-   * @returns Deserialized bigint value.
-   */
-  fromDriver (value: string): bigint {
-    return BigInt(`0x${value}`)
-  },
-})
-
-const msgpackBlob = customType<{ data: any; driverData: Buffer }>({
-/**
- * Defines the underlying database column type as a BLOB.
- * @returns - SQLite blob type in string format.
- */
-  dataType () {
-    return 'blob'
-  },
-
-  /**
-   * Converts javascript value to a MessagePack-encoded Buffer.
-   * @param value - Input application side value to serialize.
-   * @returns - The serialized MessagePack binary data.
-   */
-  toDriver (value: any) {
-    return Buffer.from(encode(value, { extensionCodec }))
-  },
-  /**
-   * Converts the database BLOB back into its original JavaScript value.
-   * @param value - The Buffer retrieved from the SQLite BLOB column.
-   * @returns - The deserialized JavaScript object or value.
-   */
-  fromDriver (value: Buffer) {
-    return decode(value, { extensionCodec })
-  }
-})
-
+import { bigint, msgpackBlob, uint8Array } from '../types/custom-types'
 /**
  * Stores spent nullifiers observed on the chain.
  */
 const nullifiers = sqliteTable(
   'nullifiers',
   {
-    nullifier: blob('nullifier').notNull(),
+    nullifier: uint8Array('nullifier').notNull(),
     // Optional
-    transactionHash: blob('transaction_hash').notNull(),
+    transactionHash: uint8Array('transaction_hash').notNull(),
     // Optional
     blockNumber: bigint('block_number').notNull(),
     treeNumber: integer('tree_number').notNull()
@@ -127,10 +37,10 @@ const nullifiers = sqliteTable(
 const unshields = sqliteTable(
   'unshields',
   {
-    transactionHash: blob('transactionHash').notNull(),
+    transactionHash: uint8Array('transactionHash').notNull(),
     blockNumber: bigint('blockNumber').notNull(),
     timestamp: bigint('timestamp').notNull(),
-    toAddress: blob('toAddress').notNull(),
+    toAddress: uint8Array('toAddress').notNull(),
     // token need reference to another table
     token: msgpackBlob('token'),
     amount: bigint('amount').notNull(),
@@ -145,13 +55,13 @@ const unshields = sqliteTable(
 )
 
 /**
- * Stores serialized Merkle tree
+ * Stores serialized Merkle tree for each tree number.
  */
 const merkleTrees = sqliteTable(
   'merkle_trees',
   {
     treeNumber: integer('treeNumber').primaryKey().notNull(),
-    leaves: blob('leaves').notNull(),
+    leaves: uint8Array('leaves').notNull(),
     // We need to keep track of this to make sure we append at proper place, when new leaf is added
     leafCount: integer('leafCount').notNull()
   },
@@ -180,9 +90,9 @@ const syncState = sqliteTable(
 const commitments = sqliteTable(
   'commitments',
   {
-    hash: blob('hash').primaryKey().notNull(),
+    hash: uint8Array('hash').primaryKey().notNull(),
     commitmentType: integer('commitmentType').notNull(),
-    transactionHash: blob('transactionHash').notNull(),
+    transactionHash: uint8Array('transactionHash').notNull(),
     blockNumber: bigint('blockNumber').notNull(),
     treeNumber: integer('treeNumber').notNull(),
     treePosition: integer('treePosition').notNull(),
@@ -221,6 +131,3 @@ export type {
 }
 
 export { commitments, nullifiers, merkleTrees, unshields, syncState, bigint }
-
-// export type DBNewToken = typeof tokens.$inferInsert
-// export type DBToken = typeof tokens.$inferSelect

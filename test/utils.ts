@@ -265,7 +265,7 @@ let noteCounter = 0
 function createTestNote (overrides?: Partial<DBNewNote>): DBNewNote {
   noteCounter++
   return {
-    commitment: `0x${noteCounter.toString(16).padStart(64, '0')}`,
+    commitment: hexToBytes(`0x${noteCounter.toString(16).padStart(64, '0')}`),
     walletId: 'wallet-1',
     nullifier: hexToBytes(`0xn${noteCounter.toString(16).padStart(63, '0')}`),
     token: '0x0000000000000000000000000000000000000000', // ETH

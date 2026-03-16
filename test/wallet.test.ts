@@ -84,7 +84,7 @@ test('Wallet Database - Notes: insert and retrieve', (t) => {
   const retrieved = getNoteByCommitment(db, note.commitment as Uint8Array)
 
   t.ok(retrieved)
-  t.is(retrieved?.commitment, note.commitment)
+  t.alike(retrieved?.commitment, note.commitment)
   t.is(retrieved?.amount, note.amount)
 })
 
