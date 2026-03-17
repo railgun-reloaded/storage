@@ -1,42 +1,45 @@
+/**
+ * Wallet database schema definitions.
+ *
+ * This file declares all tables and types used by the wallet database.  The
+ * schema is consumed by Drizzle ORM to provide type-safe queries.
+ */
 import { sql } from 'drizzle-orm'
-import { blob, customType, index, integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { index, integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
-const bigint = customType<{ data: bigint; driverData: string }>({
-  dataType () {
-    return 'text'
-  },
-  toDriver (value: bigint): string {
-    return value.toString()
-  },
-  fromDriver (value: string): bigint {
-    return BigInt(value)
-  },
-})
+import { bigint, uint8Array } from '../types/custom-types'
 
-export const wallets = sqliteTable('wallets', {
+/**
+ * Stores metadata and encrypted keys for each wallet.
+ */
+const wallets = sqliteTable('wallets', {
   id: text('id').primaryKey().notNull(),
-  encryptedKeys: blob('encrypted_keys', { mode: 'buffer' }).notNull(),
+  encryptedKeys: uint8Array('encrypted_keys').notNull(),
   name: text('name'),
   createdAt: integer('created_at', { mode: 'timestamp' })
     .notNull()
     .default(sql`(unixepoch())`),
 })
 
-export const notes = sqliteTable(
+/**
+ * Stores decrypted notes owned by wallets.  Each entry records spend status
+ * and associated commitment/nullifier values.
+ */
+const notes = sqliteTable(
   'notes',
   {
-    commitment: text('commitment').primaryKey().notNull(),
+    commitment: uint8Array('commitment').primaryKey().notNull(),
     walletId: text('wallet_id')
       .notNull()
       .references(() => wallets.id, { onDelete: 'cascade' }),
-    nullifier: text('nullifier').notNull().unique(),
+    nullifier: uint8Array('nullifier').notNull().unique(),
     token: text('token').notNull(),
     amount: bigint('amount').notNull(),
     spent: integer('spent', { mode: 'boolean' }).notNull().default(false),
-    spentTxid: text('spent_txid'),
+    spentTxid: uint8Array('spent_txid'),
     blockNumber: bigint('block_number').notNull(),
-    treeId: integer('tree_id').notNull(),
-    leafIndex: bigint('leaf_index').notNull(),
+    treeNumber: integer('tree_id').notNull(),
+    treePosition: integer('leaf_index').notNull(),
     decryptedAt: integer('decrypted_at', { mode: 'timestamp' })
       .notNull()
       .default(sql`(unixepoch())`),
@@ -45,11 +48,14 @@ export const notes = sqliteTable(
     walletSpentIdx: index('notes_wallet_spent_idx').on(table.walletId, table.spent),
     walletTokenIdx: index('notes_wallet_token_idx').on(table.walletId, table.token),
     nullifierIdx: index('notes_nullifier_idx').on(table.nullifier),
-    treeLeafIdx: index('notes_tree_leaf_idx').on(table.treeId, table.leafIndex),
+    treeLeafIdx: index('notes_tree_leaf_idx').on(table.treeNumber, table.treePosition),
   })
 )
 
-export const balances = sqliteTable(
+/**
+ * Tracks computed balances per wallet and token.
+ */
+const balances = sqliteTable(
   'balances',
   {
     walletId: text('wallet_id')
@@ -66,7 +72,10 @@ export const balances = sqliteTable(
   })
 )
 
-export const scanState = sqliteTable(
+/**
+ * Records the last scanned block height for each wallet/chain pair.
+ */
+const scanState = sqliteTable(
   'scan_state',
   {
     walletId: text('wallet_id')
@@ -83,7 +92,10 @@ export const scanState = sqliteTable(
   })
 )
 
-export const txHistory = sqliteTable(
+/**
+ * Persists transaction history events for a wallet.
+ */
+const txHistory = sqliteTable(
   'tx_history',
   {
     id: text('id').primaryKey().notNull(),
@@ -105,14 +117,20 @@ export const txHistory = sqliteTable(
   })
 )
 
-export type Wallet = typeof wallets.$inferSelect
-export type Note = typeof notes.$inferSelect
-export type Balance = typeof balances.$inferSelect
-export type ScanState = typeof scanState.$inferSelect
-export type TxHistory = typeof txHistory.$inferSelect
+type DBWallet = typeof wallets.$inferSelect
+type DBNote = typeof notes.$inferSelect
+type DBBalance = typeof balances.$inferSelect
+type DBScanState = typeof scanState.$inferSelect
+type DBTxHistory = typeof txHistory.$inferSelect
 
-export type NewWallet = typeof wallets.$inferInsert
-export type NewNote = typeof notes.$inferInsert
-export type NewBalance = typeof balances.$inferInsert
-export type NewScanState = typeof scanState.$inferInsert
-export type NewTxHistory = typeof txHistory.$inferInsert
+type DBNewWallet = typeof wallets.$inferInsert
+type DBNewNote = typeof notes.$inferInsert
+type DBNewBalance = typeof balances.$inferInsert
+type DBNewScanState = typeof scanState.$inferInsert
+type DBNewTxHistory = typeof txHistory.$inferInsert
+
+export type {
+  DBWallet, DBNote, DBBalance, DBScanState, DBTxHistory,
+  DBNewWallet, DBNewNote, DBNewBalance, DBNewScanState, DBNewTxHistory
+}
+export { wallets, txHistory, scanState, balances, notes }

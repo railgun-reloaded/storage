@@ -2,155 +2,79 @@
  * Test utilities and helpers for storage tests.
  */
 
+import crypto from 'crypto'
+
+import type {
+  ChainDB, DBNewCommitment, DBNewNote, DBNewNullifier, DBNewUnshield,
+  DBNewWallet,
+  WalletDB,
+} from '../src/index'
 import {
-  type ChainDB,
-  type NewCommitment,
-  type NewMerkleNode,
-  type NewNote,
-  type NewNullifier,
-  type NewWallet,
-  type WalletDB,
   createChainDB,
   createWalletDB
+
 } from '../src/index'
+
+enum CommitmentType {
+  ShieldCommitment = 0,
+  TransactCommitment = 1
+}
+
+/**
+ * Convert hex string to Uint8Array
+ * @param hex - Input hex string
+ * @returns - Output Uint8Array
+ */
+function hexToBytes (hex: string): Uint8Array {
+  if (hex.length % 2 !== 0) {
+    throw new Error('Invalid hex string')
+  }
+
+  const bytes = new Uint8Array(hex.length / 2)
+  for (let i = 0; i < bytes.length; i++) {
+    bytes[i] = parseInt(hex.substr(i * 2, 2), 16)
+  }
+  return bytes
+}
 
 /**
  * Creates an in-memory chain database for testing.
  * Initializes schema tables manually since migrations don't run for :memory:.
+ * @returns - ChainDB Instance
  */
-export function createTestChainDB (): ChainDB {
+function createTestChainDB (): ChainDB {
+  // We still need to run db:generate command even though we are making in-memory database
+  // This prevent us from manually writing query to generate the table and allow us to
+  // directly migration from existing file.
   const db = createChainDB({
     path: ':memory:',
     enableWAL: false,
-    runMigrations: false, // In-memory doesn't need migrations
+    runMigrations: true,
+    verbose: false,
   })
-
-  // Initialize schema tables for in-memory database
-  const sqlite = db.$client
-
-  sqlite.exec(`
-    CREATE TABLE IF NOT EXISTS nullifiers (
-      nullifier TEXT PRIMARY KEY NOT NULL,
-      txid TEXT NOT NULL,
-      block_number TEXT NOT NULL,
-      tree_id INTEGER NOT NULL,
-      created_at INTEGER NOT NULL DEFAULT (unixepoch())
-    );
-    CREATE INDEX IF NOT EXISTS nullifiers_block_number_idx ON nullifiers(block_number);
-    CREATE INDEX IF NOT EXISTS nullifiers_tree_id_idx ON nullifiers(tree_id);
-
-    CREATE TABLE IF NOT EXISTS merkle_nodes (
-      tree_id INTEGER NOT NULL,
-      level INTEGER NOT NULL,
-      "index" TEXT NOT NULL,
-      hash BLOB NOT NULL,
-      created_at INTEGER NOT NULL DEFAULT (unixepoch()),
-      PRIMARY KEY (tree_id, level, "index")
-    );
-    CREATE INDEX IF NOT EXISTS merkle_nodes_tree_level_idx ON merkle_nodes(tree_id, level);
-
-    CREATE TABLE IF NOT EXISTS commitments (
-      hash TEXT PRIMARY KEY NOT NULL,
-      tree_id INTEGER NOT NULL,
-      leaf_index TEXT NOT NULL,
-      block_number TEXT NOT NULL,
-      txid TEXT NOT NULL,
-      created_at INTEGER NOT NULL DEFAULT (unixepoch())
-    );
-    CREATE INDEX IF NOT EXISTS commitments_tree_leaf_idx ON commitments(tree_id, leaf_index);
-    CREATE INDEX IF NOT EXISTS commitments_block_number_idx ON commitments(block_number);
-
-    CREATE TABLE IF NOT EXISTS merkle_roots (
-      tree_id INTEGER NOT NULL,
-      block_number TEXT NOT NULL,
-      root BLOB NOT NULL,
-      created_at INTEGER NOT NULL DEFAULT (unixepoch()),
-      PRIMARY KEY (tree_id, block_number)
-    );
-
-    CREATE TABLE IF NOT EXISTS sync_state (
-      chain_id INTEGER PRIMARY KEY NOT NULL,
-      last_block TEXT NOT NULL,
-      updated_at INTEGER NOT NULL DEFAULT (unixepoch())
-    );
-  `)
-
   return db
+}
+
+/**
+ * Generate a random bytes of given byte size.
+ * @param byteSize - Total number of random bytes to generate.
+ * @returns - Uint8Array representation of random bytes of given byteSize.
+ */
+function randomBytes (byteSize: number) : Uint8Array {
+  return Uint8Array.from(crypto.randomBytes(byteSize))
 }
 
 /**
  * Creates an in-memory wallet database for testing.
  * Initializes schema tables manually since migrations don't run for :memory:.
+ * @returns - WalletDB Instane
  */
-export function createTestWalletDB (): WalletDB {
+function createTestWalletDB (): WalletDB {
   const db = createWalletDB({
     path: ':memory:',
     enableWAL: false,
-    runMigrations: false, // In-memory doesn't need migrations
+    runMigrations: true,
   })
-
-  // Initialize schema tables for in-memory database
-  const sqlite = db.$client
-
-  sqlite.exec(`
-    CREATE TABLE IF NOT EXISTS wallets (
-      id TEXT PRIMARY KEY NOT NULL,
-      encrypted_keys BLOB NOT NULL,
-      name TEXT,
-      created_at INTEGER NOT NULL DEFAULT (unixepoch())
-    );
-
-    CREATE TABLE IF NOT EXISTS notes (
-      commitment TEXT PRIMARY KEY NOT NULL,
-      wallet_id TEXT NOT NULL,
-      nullifier TEXT NOT NULL UNIQUE,
-      token TEXT NOT NULL,
-      amount TEXT NOT NULL,
-      spent INTEGER NOT NULL DEFAULT 0,
-      spent_txid TEXT,
-      block_number TEXT NOT NULL,
-      tree_id INTEGER NOT NULL,
-      leaf_index TEXT NOT NULL,
-      decrypted_at INTEGER NOT NULL DEFAULT (unixepoch()),
-      FOREIGN KEY (wallet_id) REFERENCES wallets(id) ON DELETE CASCADE
-    );
-    CREATE INDEX IF NOT EXISTS notes_wallet_spent_idx ON notes(wallet_id, spent);
-    CREATE INDEX IF NOT EXISTS notes_wallet_token_idx ON notes(wallet_id, token);
-    CREATE INDEX IF NOT EXISTS notes_nullifier_idx ON notes(nullifier);
-    CREATE INDEX IF NOT EXISTS notes_tree_leaf_idx ON notes(tree_id, leaf_index);
-
-    CREATE TABLE IF NOT EXISTS balances (
-      wallet_id TEXT NOT NULL,
-      token TEXT NOT NULL,
-      amount TEXT NOT NULL,
-      updated_at INTEGER NOT NULL DEFAULT (unixepoch()),
-      PRIMARY KEY (wallet_id, token),
-      FOREIGN KEY (wallet_id) REFERENCES wallets(id) ON DELETE CASCADE
-    );
-
-    CREATE TABLE IF NOT EXISTS scan_state (
-      wallet_id TEXT NOT NULL,
-      chain_id INTEGER NOT NULL,
-      last_scanned_block TEXT NOT NULL,
-      updated_at INTEGER NOT NULL DEFAULT (unixepoch()),
-      PRIMARY KEY (wallet_id, chain_id),
-      FOREIGN KEY (wallet_id) REFERENCES wallets(id) ON DELETE CASCADE
-    );
-
-    CREATE TABLE IF NOT EXISTS tx_history (
-      id TEXT PRIMARY KEY NOT NULL,
-      wallet_id TEXT NOT NULL,
-      type TEXT NOT NULL,
-      txid TEXT NOT NULL,
-      block_number TEXT NOT NULL,
-      timestamp INTEGER NOT NULL,
-      metadata TEXT,
-      created_at INTEGER NOT NULL DEFAULT (unixepoch()),
-      FOREIGN KEY (wallet_id) REFERENCES wallets(id) ON DELETE CASCADE
-    );
-    CREATE INDEX IF NOT EXISTS tx_history_wallet_block_idx ON tx_history(wallet_id, block_number);
-    CREATE INDEX IF NOT EXISTS tx_history_txid_idx ON tx_history(txid);
-  `)
 
   return db
 }
@@ -159,67 +83,169 @@ export function createTestWalletDB (): WalletDB {
  * Test data factories
  */
 
-let nullifierCounter = 0
-
 /**
  * Creates a test nullifier record.
- * @param overrides
+ * @param count - Number of test nullifiers to create
+ * @param startBlock - Optionally specify the starting block of nullifiers
+ * @returns - Array of random generated test nullifiers
  */
-export function createTestNullifier (overrides?: Partial<NewNullifier>): NewNullifier {
-  nullifierCounter++
-  return {
-    nullifier: `0x${nullifierCounter.toString(16).padStart(64, '0')}`,
-    txid: `0x${Math.random().toString(16).slice(2).padStart(64, '0')}`,
-    blockNumber: 1000n + BigInt(nullifierCounter),
-    treeId: 0,
-    ...overrides,
+function createTestNullifiers (count: number, startBlock?: bigint): DBNewNullifier[] {
+  const result = []
+  for (let i = 0; i < count; ++i) {
+    result.push({
+      nullifier: randomBytes(32),
+      transactionHash: randomBytes(32),
+      blockNumber: (startBlock ?? 1000n) + BigInt(i),
+      treeNumber: 0,
+    })
   }
+  return result
 }
-
-let nodeCounter = 0
 
 /**
- * Creates a test merkle node record.
- * @param overrides
+ * Create Test MerkleTree leaves. All the leaves of depth 16
+ * are generated and kept in single Uint8Array
+ * @returns - random merkleTree leaves stored in Uint8Array
  */
-export function createTestMerkleNode (overrides?: Partial<NewMerkleNode>): NewMerkleNode {
-  nodeCounter++
-  return {
-    treeId: 0,
-    level: 0,
-    index: BigInt(nodeCounter),
-    hash: Buffer.from(nodeCounter.toString(16).padStart(64, '0'), 'hex'),
-    ...overrides,
+function createTestMerkleTree () {
+  const totalNodes = 65536 + 65535
+  const tree = new Uint8Array(totalNodes * 32)
+  for (let i = 0; i < 65536; ++i) {
+    tree.set(randomBytes(32), i * 32)
   }
+  return tree
 }
-
-let commitmentCounter = 0
 
 /**
  * Creates a test commitment record.
- * @param overrides
+ * @param count - Number of test commitments to generate.
+ * @param startBlock - Optional startBlock.
+ * @returns - Array of generated test commitments.
  */
-export function createTestCommitment (
-  overrides?: Partial<NewCommitment>
-): NewCommitment {
-  commitmentCounter++
-  return {
-    hash: `0x${commitmentCounter.toString(16).padStart(64, '0')}`,
-    treeId: 0,
-    leafIndex: BigInt(commitmentCounter),
-    blockNumber: 1000n + BigInt(commitmentCounter),
-    txid: `0x${Math.random().toString(16).slice(2).padStart(64, '0')}`,
-    ...overrides,
+function createTestShieldCommitments (count: number, startBlock? : bigint): DBNewCommitment[] {
+  const shieldCommitments = new Array<DBNewCommitment>()
+  for (let i = 0; i < count; ++i) {
+    const tokenID = randomBytes(32)
+
+    const token = {
+      tokenID,
+      tokenSubID: randomBytes(32),
+      tokenType: 0
+    }
+
+    shieldCommitments.push({
+      transactionHash: randomBytes(32),
+      blockNumber: startBlock ?? (100n + BigInt(i)),
+      treeNumber: 0,
+      hash: randomBytes(32),
+      commitmentType: CommitmentType.ShieldCommitment,
+      treePosition: i,
+      commitment: {
+        encryptedBundle: [
+          randomBytes(32),
+          randomBytes(32),
+          randomBytes(32)
+        ],
+        fee: 1000n,
+        preimage: {
+          npk: randomBytes(32),
+          value: 1000n,
+          token,
+
+        },
+        from: randomBytes(32),
+      }
+    })
   }
+  return shieldCommitments
+}
+
+/**
+ * Generate a test Transact commitments.
+ * @param count - Total number of random transact commitments to generate.
+ * @param startBlock - Starting block which is incremented each time a new commitment is generated.
+ * @returns - Array of random generated test commitments.
+ */
+function createTestTransactCommitments (count: number, startBlock?: bigint) {
+  const transactCommitments = new Array<DBNewCommitment>()
+  for (let i = 0; i < count; ++i) {
+    transactCommitments.push({
+      transactionHash: randomBytes(32),
+      blockNumber: startBlock ?? (100n + BigInt(i)),
+      treeNumber: 0,
+      hash: randomBytes(32),
+      commitmentType: CommitmentType.TransactCommitment,
+      treePosition: i,
+      commitment: {
+        annotationData: randomBytes(64),
+        blindedReceiverViewingKey: randomBytes(32),
+        blindedSenderViewingKey: randomBytes(32),
+        ciphertext: {
+          data: [
+            randomBytes(32),
+            randomBytes(32),
+            randomBytes(32)
+          ],
+          iv: randomBytes(32),
+          tag: randomBytes(32)
+        },
+        memo: [
+          randomBytes(32)
+        ]
+      }
+    })
+  }
+  return transactCommitments
+}
+
+/**
+ * Create randomized unshields.
+ * @param count - Total number of random unshields to generate.
+ * @param startBlock - Starting block which is incremented each time a new commitment is generated.
+ * @returns - Array of random generated test unshields.
+ */
+function createTestUnshields (count: number, startBlock?: bigint) : DBNewUnshield[] {
+  const result = new Array<DBNewUnshield>()
+
+  const transactionHash = randomBytes(32)
+  for (let i = 0; i < count; ++i) {
+    result.push({
+      transactionHash,
+      blockNumber: startBlock ?? (100n + BigInt(i)),
+      timestamp: 0n,
+      toAddress: randomBytes(20),
+      token: {
+        tokenID: randomBytes(32),
+        tokenSubID: randomBytes(32),
+        tokenType: 0,
+      },
+      amount: 10000n,
+      fee: 1000n,
+      eventLogIndex: i
+    })
+  }
+  return result
+}
+
+/**
+ * Randomly shuffle a given input array
+ * @param arr - Input array to shuffle
+ * @returns - Randomly shuffled input array
+ */
+function shuffleArray (arr: any[]) {
+  return arr
+    .map(value => ({ value, sort: Math.random() }))
+    .sort((a, b) => a.sort - b.sort)
+    .map(({ value }) => value)
 }
 
 let walletCounter = 0
-
 /**
  * Creates a test wallet record.
- * @param overrides
+ * @param overrides - Optional properties to override the default wallet fields.
+ * @returns - A newly generated test wallet
  */
-export function createTestWallet (overrides?: Partial<NewWallet>): NewWallet {
+function createTestWallet (overrides?: Partial<DBNewWallet>): DBNewWallet {
   walletCounter++
   return {
     id: `wallet-${walletCounter}`,
@@ -233,20 +259,21 @@ let noteCounter = 0
 
 /**
  * Creates a test note record.
- * @param overrides
+ * @param overrides - Optional properties to override default note fields
+ * @returns - Generated test note
  */
-export function createTestNote (overrides?: Partial<NewNote>): NewNote {
+function createTestNote (overrides?: Partial<DBNewNote>): DBNewNote {
   noteCounter++
   return {
-    commitment: `0x${noteCounter.toString(16).padStart(64, '0')}`,
+    commitment: hexToBytes(`0x${noteCounter.toString(16).padStart(64, '0')}`),
     walletId: 'wallet-1',
-    nullifier: `0xn${noteCounter.toString(16).padStart(63, '0')}`,
+    nullifier: hexToBytes(`0xn${noteCounter.toString(16).padStart(63, '0')}`),
     token: '0x0000000000000000000000000000000000000000', // ETH
     amount: 1000000000000000000n, // 1 ETH
     spent: false,
     blockNumber: 1000n + BigInt(noteCounter),
-    treeId: 0,
-    leafIndex: BigInt(noteCounter),
+    treeNumber: 0,
+    treePosition: noteCounter,
     ...overrides,
   }
 }
@@ -254,10 +281,22 @@ export function createTestNote (overrides?: Partial<NewNote>): NewNote {
 /**
  * Resets test counters (for test isolation).
  */
-export function resetTestCounters (): void {
-  nullifierCounter = 0
-  nodeCounter = 0
-  commitmentCounter = 0
+function resetTestCounters (): void {
   walletCounter = 0
   noteCounter = 0
+}
+
+export {
+  createTestChainDB,
+  createTestWalletDB,
+  createTestNullifiers,
+  createTestMerkleTree,
+  createTestShieldCommitments,
+  createTestTransactCommitments,
+  createTestUnshields,
+  shuffleArray,
+  createTestWallet,
+  createTestNote,
+  resetTestCounters,
+  hexToBytes
 }

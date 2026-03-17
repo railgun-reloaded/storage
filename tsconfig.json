@@ -1,21 +1,10 @@
 {
   "extends": "@railgun-reloaded/tsconfig/tsconfig.json",
-  "compilerOptions": {
-    "outDir": "./dist",
-    "rootDir": "./src",
-    "composite": true,
-    "declaration": true,
-    "declarationMap": true,
-    "esModuleInterop": true,
-    "skipLibCheck": true
-  },
-  "include": [
-    "src/**/*"
-  ],
   "exclude": [
     "node_modules",
     "dist",
-    "test",
-    "drizzle"
+    "drizzle",
+    "bin",
+    "config"
   ]
 }

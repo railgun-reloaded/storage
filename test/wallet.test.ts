@@ -27,6 +27,7 @@ import {
   createTestNote,
   createTestWallet,
   createTestWalletDB,
+  hexToBytes,
   resetTestCounters,
 } from './utils'
 
@@ -80,10 +81,10 @@ test('Wallet Database - Notes: insert and retrieve', (t) => {
   createWallet(db, wallet)
   insertNote(db, note)
 
-  const retrieved = getNoteByCommitment(db, note.commitment)
+  const retrieved = getNoteByCommitment(db, note.commitment as Uint8Array)
 
   t.ok(retrieved)
-  t.is(retrieved?.commitment, note.commitment)
+  t.alike(retrieved?.commitment, note.commitment)
   t.is(retrieved?.amount, note.amount)
 })
 
@@ -149,18 +150,18 @@ test('Wallet Database - Notes: mark note as spent', (t) => {
   const db = createTestWalletDB()
   const wallet = createTestWallet()
   const note = createTestNote({ walletId: wallet.id, spent: false })
-  const spentTxid = '0xspent123'
+  const spentTxid = hexToBytes('0xfe32')
 
   createWallet(db, wallet)
   insertNote(db, note)
 
-  markNoteSpent(db, note.commitment, spentTxid)
+  markNoteSpent(db, note.commitment as Uint8Array, spentTxid as Uint8Array)
 
-  const retrieved = getNoteByCommitment(db, note.commitment)
+  const retrieved = getNoteByCommitment(db, note.commitment as Uint8Array)
 
   t.ok(retrieved)
   t.is(retrieved?.spent, true)
-  t.is(retrieved?.spentTxid, spentTxid)
+  t.alike.coercively(retrieved?.spentTxid, spentTxid)
 })
 
 test('Wallet Database - Notes: batch mark notes as spent', (t) => {
@@ -171,8 +172,8 @@ test('Wallet Database - Notes: batch mark notes as spent', (t) => {
     createTestNote({ walletId: wallet.id, spent: false }),
     createTestNote({ walletId: wallet.id, spent: false }),
   ]
-  const commitments = notes.map((n) => n.commitment)
-  const spentTxid = '0xspent456'
+  const commitments = notes.map((n) => n.commitment as Uint8Array)
+  const spentTxid = hexToBytes('0xff32')
 
   createWallet(db, wallet)
   insertNotesBatch(db, notes)
@@ -397,6 +398,6 @@ test('Wallet Database - Cascade Delete: delete wallet data', (t) => {
   deleteWallet(db, wallet.id)
 
   t.is(getWallet(db, wallet.id), undefined)
-  t.is(getNoteByCommitment(db, note.commitment), undefined)
+  t.is(getNoteByCommitment(db, note.commitment as Uint8Array), undefined)
   t.is(getAllBalances(db, wallet.id).length, 0)
 })

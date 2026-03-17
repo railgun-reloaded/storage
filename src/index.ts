@@ -1,5 +1,5 @@
 /**
- * @reloaded/storage - Persistence layer for RAILGUN Reloaded
+ * railgun-reloaded/storage - Persistence layer for RAILGUN Reloaded
  *
  * Two-database architecture:
  * - chain.db: Public blockchain state (shared across wallets)
@@ -20,7 +20,6 @@
  *   path: '~/.railgun/wallets/my-wallet/wallet.db',
  * });
  * ```
- * @packageDocumentation
  */
 
 // Re-export everything from chain and wallet modules

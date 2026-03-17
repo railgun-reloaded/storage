@@ -1,104 +1,133 @@
+/**
+ * Chain database schema definitions.
+ *
+ * This file defines tables used to store public blockchain state, including
+ * nullifiers, commitments, Merkle trees, and sync status.  Custom types are
+ * provided to handle bigint and msgpack serialization.
+ */
 import { sql } from 'drizzle-orm'
-import { blob, customType, index, integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { check, index, integer, primaryKey, sqliteTable } from 'drizzle-orm/sqlite-core'
 
-const bigint = customType<{ data: bigint; driverData: string }>({
-  dataType () {
-    return 'text'
-  },
-  toDriver (value: bigint): string {
-    return value.toString()
-  },
-  fromDriver (value: string): bigint {
-    return BigInt(value)
-  },
-})
-
-export const nullifiers = sqliteTable(
+import { bigint, msgpackBlob, uint8Array } from '../types/custom-types'
+/**
+ * Stores spent nullifiers observed on the chain.
+ */
+const nullifiers = sqliteTable(
   'nullifiers',
   {
-    nullifier: text('nullifier').primaryKey().notNull(),
-    txid: text('txid').notNull(),
+    nullifier: uint8Array('nullifier').notNull(),
+    // Optional
+    transactionHash: uint8Array('transaction_hash').notNull(),
+    // Optional
     blockNumber: bigint('block_number').notNull(),
-    treeId: integer('tree_id').notNull(),
-    createdAt: integer('created_at', { mode: 'timestamp' })
-      .notNull()
-      .default(sql`(unixepoch())`),
+    treeNumber: integer('tree_number').notNull()
   },
   (table) => ({
-    blockNumberIdx: index('nullifiers_block_number_idx').on(table.blockNumber),
-    treeIdIdx: index('nullifiers_tree_id_idx').on(table.treeId),
+    blockNumberIndex: index('nullifiers_block_number_index').on(table.blockNumber),
+    treeNumberIndex: index('nullifiers_tree_number_index').on(table.treeNumber),
+    // Optional 32 bytes constraint on nullifier
+    nullifierSizeCheck: check('nullifier_size_check', sql`length(${table.nullifier}) = 32`),
+    pk: primaryKey({ columns: [table.nullifier, table.treeNumber] }),
   })
 )
 
-export const merkleNodes = sqliteTable(
-  'merkle_nodes',
+/**
+ * Records unshield events from the chain.
+ */
+const unshields = sqliteTable(
+  'unshields',
   {
-    treeId: integer('tree_id').notNull(),
-    level: integer('level').notNull(),
-    index: bigint('index').notNull(),
-    hash: blob('hash', { mode: 'buffer' }).notNull(),
-    createdAt: integer('created_at', { mode: 'timestamp' })
-      .notNull()
-      .default(sql`(unixepoch())`),
+    transactionHash: uint8Array('transactionHash').notNull(),
+    blockNumber: bigint('blockNumber').notNull(),
+    timestamp: bigint('timestamp').notNull(),
+    toAddress: uint8Array('toAddress').notNull(),
+    // token need reference to another table
+    token: msgpackBlob('token'),
+    amount: bigint('amount').notNull(),
+    fee: bigint('fee').notNull(),
+    eventLogIndex: integer('eventLogIndex').notNull()
   },
   (table) => ({
-    pk: primaryKey({ columns: [table.treeId, table.level, table.index] }),
-    treeIdLevelIdx: index('merkle_nodes_tree_level_idx').on(table.treeId, table.level),
+    // Max 20 byte check on address
+    toAddressCheck: check('to_address_check', sql`length(${table.toAddress}) <= 20`),
+    pk: primaryKey({ columns: [table.transactionHash, table.eventLogIndex] })
   })
 )
 
-export const commitments = sqliteTable(
-  'commitments',
+/**
+ * Stores serialized Merkle tree for each tree number.
+ */
+const merkleTrees = sqliteTable(
+  'merkle_trees',
   {
-    hash: text('hash').primaryKey().notNull(),
-    treeId: integer('tree_id').notNull(),
-    leafIndex: bigint('leaf_index').notNull(),
-    blockNumber: bigint('block_number').notNull(),
-    txid: text('txid').notNull(),
-    createdAt: integer('created_at', { mode: 'timestamp' })
-      .notNull()
-      .default(sql`(unixepoch())`),
+    treeNumber: integer('treeNumber').primaryKey().notNull(),
+    leaves: uint8Array('leaves').notNull(),
+    // We need to keep track of this to make sure we append at proper place, when new leaf is added
+    leafCount: integer('leafCount').notNull()
   },
   (table) => ({
-    treeLeafIdx: index('commitments_tree_leaf_idx').on(table.treeId, table.leafIndex),
-    blockNumberIdx: index('commitments_block_number_idx').on(table.blockNumber),
+    // Total memory for merkleTree (bytes)= 65536 * 32 + 65535 * 32
+    leavesSizeCheck: check('merkle_tree_element_byte_size_check', sql`length(${table.leaves}) = 4194272`),
+    leafCountCheck: check('merkle_tree_leaf_count_check', sql`${table.leafCount} <= 65536`)
   })
 )
 
-export const merkleRoots = sqliteTable(
-  'merkle_roots',
+// Chain Sync states
+/**
+ * Keeps track of the last processed block height for each chain ID.
+ */
+const syncState = sqliteTable(
+  'sync_states',
   {
-    treeId: integer('tree_id').notNull(),
-    blockNumber: bigint('block_number').notNull(),
-    root: blob('root', { mode: 'buffer' }).notNull(),
-    createdAt: integer('created_at', { mode: 'timestamp' })
-      .notNull()
-      .default(sql`(unixepoch())`),
-  },
-  (table) => ({
-    pk: primaryKey({ columns: [table.treeId, table.blockNumber] }),
-  })
-)
-
-export const syncState = sqliteTable(
-  'sync_state',
-  {
-    chainId: integer('chain_id').primaryKey().notNull(),
-    lastBlock: bigint('last_block').notNull(),
-    updatedAt: integer('updated_at', { mode: 'timestamp' })
-      .notNull()
-      .default(sql`(unixepoch())`),
+    chainID: integer('chain_id').primaryKey().notNull(),
+    lastBlockHeight: bigint('last_block_height').notNull(),
   }
 )
 
-export type Nullifier = typeof nullifiers.$inferSelect
-export type MerkleNode = typeof merkleNodes.$inferSelect
-export type Commitment = typeof commitments.$inferSelect
-export type MerkleRoot = typeof merkleRoots.$inferSelect
-export type SyncState = typeof syncState.$inferSelect
+/**
+ * Stores commitment records indexed by hash.
+ */
+const commitments = sqliteTable(
+  'commitments',
+  {
+    hash: uint8Array('hash').primaryKey().notNull(),
+    commitmentType: integer('commitmentType').notNull(),
+    transactionHash: uint8Array('transactionHash').notNull(),
+    blockNumber: bigint('blockNumber').notNull(),
+    treeNumber: integer('treeNumber').notNull(),
+    treePosition: integer('treePosition').notNull(),
+    // Commitment is a deeply nested object, which is hard to represent properly in sqlite, so we
+    // fallback to jsonblob as we won't do any filtering by it
+    commitment: msgpackBlob('commitment').notNull()
+  },
+  (table) => ({
+    treePositionIndex: index('commitment_tree_data_index').on(
+      table.treeNumber,
+      table.treePosition
+    ),
+    transactionHashIndex: index('commitment_tx_hash_index').on(table.transactionHash),
+    treePositionCheck: check('tree_position_check', sql`${table.treePosition} < 65536`)
+  })
+)
 
-export type NewNullifier = typeof nullifiers.$inferInsert
-export type NewMerkleNode = typeof merkleNodes.$inferInsert
-export type NewCommitment = typeof commitments.$inferInsert
-export type NewMerkleRoot = typeof merkleRoots.$inferInsert
-export type NewSyncState = typeof syncState.$inferInsert
+type DBNullifier = typeof nullifiers.$inferSelect
+type DBNewNullifier = typeof nullifiers.$inferInsert
+type DBMerkleTree = typeof merkleTrees.$inferSelect
+type DBNewMerkleTree = typeof merkleTrees.$inferInsert
+type DBUnshield = typeof unshields.$inferSelect
+type DBNewUnshield = typeof unshields.$inferInsert
+type DBCommitment = typeof commitments.$inferSelect
+type DBNewCommitment = typeof commitments.$inferInsert
+
+export type {
+  DBNullifier,
+  DBNewNullifier,
+  DBMerkleTree,
+  DBNewMerkleTree,
+  DBUnshield,
+  DBNewUnshield,
+  DBCommitment,
+  DBNewCommitment,
+}
+
+export { commitments, nullifiers, merkleTrees, unshields, syncState, bigint }
