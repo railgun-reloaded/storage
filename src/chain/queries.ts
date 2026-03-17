@@ -196,18 +196,6 @@ function deleteCommitmentsFromBlock (db: DBContext, fromBlock: bigint): number {
   return changes
 }
 
-/*
-export function getCommitmentsByHashes (db: ChainDB, hashes: Uint8Array[]) {
-  if (hashes.length === 0) return []
-
-  return db
-    .select()
-    .from(commitments)
-    .where(inArray(commitments.hash, hashes))
-    .all()
-}
-*/
-
 /**
  * Fetch the Merkle tree leaf data for a given tree number.
  * @param db - Chain database instance.
