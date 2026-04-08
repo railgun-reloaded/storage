@@ -113,6 +113,34 @@ function deleteNullifiersFromBlock (db: DBContext, fromBlock: bigint): number {
   return changes
 }
 
+/**
+ * Retrieve all nullifiers from the database.
+ * @param db - Chain database instance.
+ * @returns Array of all nullifier records sorted by block number.
+ */
+function getAllNullifiers (db: ChainDB) {
+  return db
+    .select()
+    .from(nullifiers)
+    .orderBy(asc(nullifiers.blockNumber))
+    .all()
+}
+
+/**
+ * Retrieve nullifiers at or after a given block number.
+ * @param db - Chain database instance.
+ * @param fromBlock - Starting block height (inclusive).
+ * @returns Array of nullifier records sorted by block number.
+ */
+function getNullifiersFromBlock (db: ChainDB, fromBlock: bigint) {
+  return db
+    .select()
+    .from(nullifiers)
+    .where(gte(nullifiers.blockNumber, fromBlock))
+    .orderBy(asc(nullifiers.blockNumber))
+    .all()
+}
+
 // Commitments
 
 /**
@@ -305,6 +333,8 @@ export {
   insertNullifiersBatch,
   getNullifiersByBlockRange,
   deleteNullifiersFromBlock,
+  getAllNullifiers,
+  getNullifiersFromBlock,
   insertCommitmentBatch,
   getCommitmentsByLeafRange,
   getCommitmentsByBlockRange,

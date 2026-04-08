@@ -2,9 +2,11 @@ import { test } from 'brittle'
 
 import {
   deleteNullifiersFromBlock,
+  getAllNullifiers,
   getCommitmentsByBlockRange,
   getCommitmentsByLeafRange,
   getNullifiersByBlockRange,
+  getNullifiersFromBlock,
   getSyncState,
   getUnshieldsByBlockRange,
   insertCommitmentBatch,
@@ -130,6 +132,47 @@ test('ChainDB: Should delete nullifier greater than given block', (assert) => {
 
   exists = nullifierExists(db, nullifiers[0]!.nullifier as Uint8Array, nullifiers[0]!.treeNumber)
   assert.is(exists, false)
+})
+
+test('ChainDB: Should return all nullifiers', (assert) => {
+  const db = createTestChainDB()
+  const batch = createTestNullifiers(5, 100n)
+  insertNullifiersBatch(db, batch)
+
+  const all = getAllNullifiers(db)
+  assert.is(all.length, 5)
+  for (const row of all) {
+    assert.ok(row.nullifier instanceof Uint8Array)
+    assert.is((row.nullifier as Uint8Array).length, 32)
+  }
+})
+
+test('ChainDB: Should return empty array when no nullifiers exist', (assert) => {
+  const db = createTestChainDB()
+  const all = getAllNullifiers(db)
+  assert.is(all.length, 0)
+})
+
+test('ChainDB: Should return nullifiers from block onwards', (assert) => {
+  const db = createTestChainDB()
+  const early = createTestNullifiers(3, 100n)
+  const late = createTestNullifiers(4, 200n)
+  insertNullifiersBatch(db, [...early, ...late])
+
+  const result = getNullifiersFromBlock(db, 200n)
+  assert.is(result.length, 4)
+  for (const row of result) {
+    assert.ok(row.blockNumber >= 200n)
+  }
+})
+
+test('ChainDB: Should return empty when no nullifiers after block', (assert) => {
+  const db = createTestChainDB()
+  const batch = createTestNullifiers(3, 100n)
+  insertNullifiersBatch(db, batch)
+
+  const result = getNullifiersFromBlock(db, 500n)
+  assert.is(result.length, 0)
 })
 
 test('ChainDB: Should insert merkletree', (assert) => {
