@@ -1,3 +1,5 @@
+import path from 'path'
+
 import Database from 'better-sqlite3'
 import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
@@ -33,7 +35,7 @@ const DEFAULT_WALLET_MIGRATION_FOLDER = './drizzle/wallet'
  */
 function createWalletDB (config: WalletDBConfig): WalletDB {
   const {
-    path,
+    path: dbPath,
     enableWAL,
     runMigrations = true,
     migrationsFolder,
@@ -41,7 +43,7 @@ function createWalletDB (config: WalletDBConfig): WalletDB {
     encryptionKey,
   } = config
 
-  const sqlite = new Database(path, {
+  const sqlite = new Database(dbPath, {
     verbose: verbose ? console.log : undefined,
   })
 
@@ -55,11 +57,16 @@ function createWalletDB (config: WalletDBConfig): WalletDB {
   db.$client = sqlite
 
   if (runMigrations) {
-    const migrationFilePath = migrationsFolder ?? DEFAULT_WALLET_MIGRATION_FOLDER
+    /**
+     * We try to locate the drizzle/ folder relative to this package, instead of
+     * the package that includes it as a dependency. This prevents consumers from
+     * needing a drizzle/ folder of their own.
+     */
+    const migrationFilePath = path.resolve(__dirname, '../../', migrationsFolder ?? DEFAULT_WALLET_MIGRATION_FOLDER)
     try {
       migrate(db, { migrationsFolder: migrationFilePath })
       if (verbose) {
-        console.log(`Wallet database migrations applied: ${path}`)
+        console.log(`Wallet database migrations applied: ${dbPath}`)
       }
     } catch (error) {
       console.error('Failed to apply wallet database migrations:', error)
