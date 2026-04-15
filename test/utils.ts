@@ -11,30 +11,13 @@ import type {
 } from '../src/index'
 import {
   createChainDB,
-  createWalletDB
-
+  createWalletDB,
 } from '../src/index'
+import { hexToBytes } from '../src/utils/hex'
 
 enum CommitmentType {
   ShieldCommitment = 0,
   TransactCommitment = 1
-}
-
-/**
- * Convert hex string to Uint8Array
- * @param hex - Input hex string
- * @returns - Output Uint8Array
- */
-function hexToBytes (hex: string): Uint8Array {
-  if (hex.length % 2 !== 0) {
-    throw new Error('Invalid hex string')
-  }
-
-  const bytes = new Uint8Array(hex.length / 2)
-  for (let i = 0; i < bytes.length; i++) {
-    bytes[i] = parseInt(hex.substr(i * 2, 2), 16)
-  }
-  return bytes
 }
 
 /**

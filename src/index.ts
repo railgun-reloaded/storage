@@ -24,4 +24,5 @@
 
 // Re-export everything from chain and wallet modules
 export * from './chain/index'
+export * from './utils/hex'
 export * from './wallet/index'
