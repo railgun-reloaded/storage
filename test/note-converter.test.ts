@@ -2,6 +2,13 @@ import { test } from 'brittle'
 
 import type { NoteInput } from '../src/wallet/note-converter'
 import { toDBNote, toDBNotes } from '../src/wallet/note-converter'
+import {
+  createWallet,
+  getNoteByCommitment,
+  insertNotesBatch,
+} from '../src/wallet/queries'
+
+import { createTestWallet, createTestWalletDB } from './utils'
 
 const BASE_INPUT: NoteInput = {
   commitment: '0xaabbccdd00000000000000000000000000000000000000000000000000000000',
@@ -60,4 +67,68 @@ test('toDBNotes: returns empty array for empty input', (t) => {
   const results = toDBNotes([])
   t.is(results.length, 0)
   t.ok(Array.isArray(results))
+})
+
+test('toDBNotes + insertNotesBatch round-trip persists correctly', (t) => {
+  const db = createTestWalletDB()
+  const wallet = createTestWallet()
+  createWallet(db, wallet)
+
+  const inputs: NoteInput[] = [
+    {
+      commitment: '0xaa00000000000000000000000000000000000000000000000000000000000001',
+      walletId: wallet.id,
+      nullifier: '0xbb00000000000000000000000000000000000000000000000000000000000001',
+      token: '0x0000000000000000000000000000000000000000',
+      amount: 100n,
+      blockNumber: 2000n,
+      treeNumber: 1,
+      treePosition: 3,
+    },
+    {
+      commitment: '0xaa00000000000000000000000000000000000000000000000000000000000002',
+      walletId: wallet.id,
+      nullifier: '0xbb00000000000000000000000000000000000000000000000000000000000002',
+      token: '0x0000000000000000000000000000000000000000',
+      amount: 200n,
+      blockNumber: 2001n,
+      treeNumber: 1,
+      treePosition: 4,
+    },
+  ]
+
+  const dbNotes = toDBNotes(inputs)
+  const count = insertNotesBatch(db, dbNotes)
+  t.is(count, 2)
+
+  const found = getNoteByCommitment(db, dbNotes[0]!.commitment as Uint8Array)
+  t.ok(found !== undefined)
+  t.is(found!.amount, 100n)
+  t.is(found!.spent, false)
+  t.is(found!.treeNumber, 1)
+  t.is(found!.treePosition, 3)
+})
+
+test('toDBNotes + insertNotesBatch handles duplicates idempotently', (t) => {
+  const db = createTestWalletDB()
+  const wallet = createTestWallet()
+  createWallet(db, wallet)
+
+  const inputs: NoteInput[] = [
+    {
+      commitment: '0xcc00000000000000000000000000000000000000000000000000000000000001',
+      walletId: wallet.id,
+      nullifier: '0xdd00000000000000000000000000000000000000000000000000000000000001',
+      token: '0x0000000000000000000000000000000000000000',
+      amount: 300n,
+      blockNumber: 3000n,
+      treeNumber: 2,
+      treePosition: 5,
+    },
+  ]
+
+  const dbNotes = toDBNotes(inputs)
+  insertNotesBatch(db, dbNotes)
+  const secondCount = insertNotesBatch(db, toDBNotes(inputs))
+  t.is(secondCount, 0)
 })
