@@ -250,7 +250,7 @@ function createTestNote (overrides?: Partial<DBNewNote>): DBNewNote {
   return {
     commitment: hexToBytes(`0x${noteCounter.toString(16).padStart(64, '0')}`),
     walletId: 'wallet-1',
-    nullifier: hexToBytes(`0xn${noteCounter.toString(16).padStart(63, '0')}`),
+    nullifier: hexToBytes(`0xee${noteCounter.toString(16).padStart(62, '0')}`),
     token: '0x0000000000000000000000000000000000000000', // ETH
     amount: 1000000000000000000n, // 1 ETH
     spent: false,

@@ -1,3 +1,5 @@
+const HEX_CHARACTERS = /^[0-9a-fA-F]*$/
+
 /**
  * Converts a hex string to a Uint8Array.
  * Accepts hex strings with or without a leading `0x` prefix.
@@ -11,13 +13,13 @@ function hexToBytes (hex: string): Uint8Array {
     return new Uint8Array(0)
   }
 
-  if (stripped.length % 2 !== 0) {
+  if (stripped.length % 2 !== 0 || !HEX_CHARACTERS.test(stripped)) {
     throw new Error('Invalid hex string')
   }
 
   const bytes = new Uint8Array(stripped.length / 2)
   for (let i = 0; i < bytes.length; i++) {
-    bytes[i] = parseInt(stripped.substr(i * 2, 2), 16)
+    bytes[i] = parseInt(stripped.substring(i * 2, i * 2 + 2), 16)
   }
   return bytes
 }

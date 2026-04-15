@@ -27,6 +27,11 @@ test('hexToBytes: throws on odd-length hex string', (assert) => {
   assert.exception(() => hexToBytes('0xabc'), /Invalid hex string/)
 })
 
+test('hexToBytes: throws on non-hex characters', (assert) => {
+  assert.exception(() => hexToBytes('zzzz'), /Invalid hex string/)
+  assert.exception(() => hexToBytes('0xgg11'), /Invalid hex string/)
+})
+
 test('hexToBytes: returns empty Uint8Array for empty string', (assert) => {
   const result = hexToBytes('')
   assert.is(result.length, 0)
