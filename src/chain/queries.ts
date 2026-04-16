@@ -239,6 +239,19 @@ function getMerkleTree (db: ChainDB, treeNumber: number) {
 }
 
 /**
+ * Fetch all Merkle trees from the database, ordered by tree number.
+ * @param db - Chain database instance.
+ * @returns Array of all Merkle tree records sorted by tree number.
+ */
+function getAllMerkleTrees (db: ChainDB) {
+  return db
+    .select()
+    .from(merkleTrees)
+    .orderBy(asc(merkleTrees.treeNumber))
+    .all()
+}
+
+/**
  * Insert or update a Merkle tree record.
  * @param db - Chain database or transaction context.
  * @param tree - Merkle tree data to persist.
@@ -340,6 +353,7 @@ export {
   getCommitmentsByBlockRange,
   deleteCommitmentsFromBlock,
   getMerkleTree,
+  getAllMerkleTrees,
   setMerkleTree,
   getSyncState,
   updateSyncState,
