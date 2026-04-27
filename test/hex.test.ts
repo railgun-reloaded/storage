@@ -1,6 +1,5 @@
+import { hexToBytes } from '@railgun-reloaded/bytes'
 import { test } from 'brittle'
-
-import { hexToBytes } from '../src/utils/hex'
 
 test('hexToBytes: converts hex string without 0x prefix', (assert) => {
   const result = hexToBytes('deadbeef')
@@ -23,13 +22,13 @@ test('hexToBytes: handles 32-byte commitment hash', (assert) => {
 })
 
 test('hexToBytes: throws on odd-length hex string', (assert) => {
-  assert.exception(() => hexToBytes('abc'), /Invalid hex string/)
-  assert.exception(() => hexToBytes('0xabc'), /Invalid hex string/)
+  assert.exception(() => hexToBytes('abc'), /odd-length/)
+  assert.exception(() => hexToBytes('0xabc'), /odd-length/)
 })
 
 test('hexToBytes: throws on non-hex characters', (assert) => {
-  assert.exception(() => hexToBytes('zzzz'), /Invalid hex string/)
-  assert.exception(() => hexToBytes('0xgg11'), /Invalid hex string/)
+  assert.exception(() => hexToBytes('zzzz'), /non-hex/)
+  assert.exception(() => hexToBytes('0xgg11'), /non-hex/)
 })
 
 test('hexToBytes: returns empty Uint8Array for empty string', (assert) => {

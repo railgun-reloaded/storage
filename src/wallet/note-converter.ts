@@ -1,4 +1,4 @@
-import { hexToBytes } from '../utils/hex'
+import { hexToBytes } from '@railgun-reloaded/bytes'
 
 import type { DBNewNote } from './schema'
 
