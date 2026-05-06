@@ -11,6 +11,18 @@ import {
 } from './schema'
 
 /**
+ * Canonical form for ERC-20 token addresses stored in or queried against the
+ * wallet database. All comparisons rely on a single lowercase form so that
+ * callers passing mixed-case (e.g. EIP-55 checksummed) addresses do not miss
+ * rows written in a different case.
+ * @param token - Token address in any case.
+ * @returns Lowercase token address.
+ */
+function normalizeToken (token: string): string {
+  return token.toLowerCase()
+}
+
+/**
  * Insert a new wallet record and return its ID.
  * @param db - Wallet database instance.
  * @param wallet - Data for the new wallet.
@@ -59,7 +71,10 @@ function deleteWallet (db: WalletDB, walletId: string): number {
  * @param note - Note data to insert.
  */
 function insertNote (db: WalletDB, note: DBNewNote): void {
-  db.insert(notes).values(note).onConflictDoNothing().run()
+  db.insert(notes)
+    .values({ ...note, token: normalizeToken(note.token) })
+    .onConflictDoNothing()
+    .run()
 }
 
 /**
@@ -71,10 +86,15 @@ function insertNote (db: WalletDB, note: DBNewNote): void {
 function insertNotesBatch (db: WalletDB, noteList: DBNewNote[]): number {
   if (noteList.length === 0) return 0
 
+  const normalizedNotes = noteList.map((note) => ({
+    ...note,
+    token: normalizeToken(note.token),
+  }))
+
   return db.transaction(() => {
     const result = db
       .insert(notes)
-      .values(noteList)
+      .values(normalizedNotes)
       .onConflictDoNothing()
       .run()
 
@@ -114,7 +134,7 @@ function getUnspentNotesByToken (
     .where(
       and(
         eq(notes.walletId, walletId),
-        eq(notes.token, token),
+        eq(notes.token, normalizeToken(token)),
         eq(notes.spent, false)
       )
     )
@@ -207,6 +227,7 @@ function recalculateBalance (
   walletId: string,
   token: string
 ): bigint {
+  const normalizedTokenAddress = normalizeToken(token)
   // Amount is internally stored as text (custom bigint type) and sqlite has limitation
   // of 64 bit Integer sum, we cannot apply SUM operation here
   return db.transaction(() => {
@@ -216,7 +237,7 @@ function recalculateBalance (
       .where(
         and(
           eq(notes.walletId, walletId),
-          eq(notes.token, token),
+          eq(notes.token, normalizedTokenAddress),
           eq(notes.spent, false)
         )
       )
@@ -224,7 +245,7 @@ function recalculateBalance (
 
     const amount = result.reduce((sum, row) => sum + row.amount, 0n)
     db.insert(balances)
-      .values({ walletId, token, amount })
+      .values({ walletId, token: normalizedTokenAddress, amount })
       .onConflictDoUpdate({
         target: [balances.walletId, balances.token],
         set: { amount, updatedAt: sql`(unixepoch())` },
@@ -246,7 +267,7 @@ function getBalance (db: WalletDB, walletId: string, token: string) {
   return db
     .select()
     .from(balances)
-    .where(and(eq(balances.walletId, walletId), eq(balances.token, token)))
+    .where(and(eq(balances.walletId, walletId), eq(balances.token, normalizeToken(token))))
     .get()
 }
 

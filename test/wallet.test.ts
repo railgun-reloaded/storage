@@ -229,8 +229,8 @@ test('Wallet Database - Balances: recalculate all balances', (t) => {
   const balances = getAllBalances(db, wallet.id)
 
   t.is(balances.length, 2)
-  const ethBalance = balances.find((b) => b.token === ethToken)
-  const daiBalance = balances.find((b) => b.token === daiToken)
+  const ethBalance = balances.find((b) => b.token === ethToken.toLowerCase())
+  const daiBalance = balances.find((b) => b.token === daiToken.toLowerCase())
 
   t.ok(ethBalance)
   t.is(ethBalance?.amount, 300n)
@@ -400,4 +400,93 @@ test('Wallet Database - Cascade Delete: delete wallet data', (t) => {
   t.is(getWallet(db, wallet.id), undefined)
   t.is(getNoteByCommitment(db, note.commitment as Uint8Array), undefined)
   t.is(getAllBalances(db, wallet.id).length, 0)
+})
+
+test('Wallet Database - Token Case: insertNote stores token lowercase', (t) => {
+  resetTestCounters()
+  const db = createTestWalletDB()
+  const wallet = createTestWallet()
+  const checksumAddress = '0x6B175474E89094C44Da98b954EedeAC495271d0F'
+  const note = createTestNote({ walletId: wallet.id, token: checksumAddress })
+
+  createWallet(db, wallet)
+  insertNote(db, note)
+
+  const retrieved = getNoteByCommitment(db, note.commitment as Uint8Array)
+  t.is(retrieved?.token, checksumAddress.toLowerCase())
+})
+
+test('Wallet Database - Token Case: insertNotesBatch stores tokens lowercase', (t) => {
+  resetTestCounters()
+  const db = createTestWalletDB()
+  const wallet = createTestWallet()
+  const checksumAddress = '0x6B175474E89094C44Da98b954EedeAC495271d0F'
+  const upperAddress = '0xA0B86991C6218B36C1D19D4A2E9EB0CE3606EB48'
+  const notes = [
+    createTestNote({ walletId: wallet.id, token: checksumAddress }),
+    createTestNote({ walletId: wallet.id, token: upperAddress }),
+  ]
+
+  createWallet(db, wallet)
+  insertNotesBatch(db, notes)
+
+  const allNotes = getUnspentNotes(db, wallet.id)
+  t.is(allNotes.length, 2)
+  t.ok(allNotes.every((n) => n.token === n.token.toLowerCase()))
+})
+
+test('Wallet Database - Token Case: getBalance accepts mixed-case input', (t) => {
+  resetTestCounters()
+  const db = createTestWalletDB()
+  const wallet = createTestWallet()
+  const checksumAddress = '0x6B175474E89094C44Da98b954EedeAC495271d0F'
+
+  createWallet(db, wallet)
+  insertNote(db, createTestNote({
+    walletId: wallet.id,
+    token: checksumAddress,
+    amount: 500n,
+  }))
+  recalculateBalance(db, wallet.id, checksumAddress)
+
+  t.is(getBalance(db, wallet.id, checksumAddress)?.amount, 500n)
+  t.is(getBalance(db, wallet.id, checksumAddress.toLowerCase())?.amount, 500n)
+  t.is(getBalance(db, wallet.id, checksumAddress.toUpperCase())?.amount, 500n)
+})
+
+test('Wallet Database - Token Case: getUnspentNotesByToken accepts mixed-case input', (t) => {
+  resetTestCounters()
+  const db = createTestWalletDB()
+  const wallet = createTestWallet()
+  const checksumAddress = '0x6B175474E89094C44Da98b954EedeAC495271d0F'
+
+  createWallet(db, wallet)
+  insertNotesBatch(db, [
+    createTestNote({ walletId: wallet.id, token: checksumAddress }),
+    createTestNote({ walletId: wallet.id, token: checksumAddress }),
+  ])
+
+  t.is(getUnspentNotesByToken(db, wallet.id, checksumAddress).length, 2)
+  t.is(getUnspentNotesByToken(db, wallet.id, checksumAddress.toLowerCase()).length, 2)
+  t.is(getUnspentNotesByToken(db, wallet.id, checksumAddress.toUpperCase()).length, 2)
+})
+
+test('Wallet Database - Token Case: same address in different cases dedupes to one balance row', (t) => {
+  resetTestCounters()
+  const db = createTestWalletDB()
+  const wallet = createTestWallet()
+  const checksumAddress = '0x6B175474E89094C44Da98b954EedeAC495271d0F'
+
+  createWallet(db, wallet)
+  insertNotesBatch(db, [
+    createTestNote({ walletId: wallet.id, token: checksumAddress, amount: 100n }),
+    createTestNote({ walletId: wallet.id, token: checksumAddress.toLowerCase(), amount: 200n }),
+    createTestNote({ walletId: wallet.id, token: checksumAddress.toUpperCase(), amount: 300n }),
+  ])
+  recalculateAllBalances(db, wallet.id)
+
+  const balances = getAllBalances(db, wallet.id)
+  t.is(balances.length, 1)
+  t.is(balances[0]?.token, checksumAddress.toLowerCase())
+  t.is(balances[0]?.amount, 600n)
 })
