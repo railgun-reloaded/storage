@@ -1,4 +1,5 @@
-import { test } from 'brittle'
+import assert from 'node:assert'
+import { test } from 'node:test'
 
 import {
   deleteNullifiersFromBlock,
@@ -27,51 +28,51 @@ import {
   shuffleArray
 } from './utils'
 
-test('ChainDB: Insert nullifiers', (assert) => {
+test('ChainDB: Insert nullifiers', () => {
   const db = createTestChainDB()
   const nullifiersBatch = createTestNullifiers(8)
   const changes = insertNullifiersBatch(db, nullifiersBatch)
-  assert.is(changes, nullifiersBatch.length)
+  assert.equal(changes, nullifiersBatch.length)
 })
 
-test('ChainDB: Should insert and fetch same nullifiers', (assert) => {
+test('ChainDB: Should insert and fetch same nullifiers', () => {
   const db = createTestChainDB()
   const startBlock = 100n
   const nullifiersBatch = createTestNullifiers(4, 100n)
   const changes = insertNullifiersBatch(db, nullifiersBatch)
-  assert.is(changes, nullifiersBatch.length)
+  assert.equal(changes, nullifiersBatch.length)
 
   const fetchedNullifiers = getNullifiersByBlockRange(db, startBlock, startBlock + 10n)
-  assert.alike.coercively(nullifiersBatch, fetchedNullifiers)
+  assert.deepEqual(nullifiersBatch, fetchedNullifiers)
 })
 
-test('ChainDB: Should insert duplicate nullifiers with different treeNumber', (assert) => {
+test('ChainDB: Should insert duplicate nullifiers with different treeNumber', () => {
   const db = createTestChainDB()
   const startBlock = 100n
   const nullifiersBatch = createTestNullifiers(1, 100n)
   let inserted = insertNullifiersBatch(db, nullifiersBatch)
-  assert.is(inserted, 1)
+  assert.equal(inserted, 1)
 
   nullifiersBatch[0]!.treeNumber = 1
   inserted = insertNullifiersBatch(db, nullifiersBatch)
-  assert.is(inserted, 1)
+  assert.equal(inserted, 1)
 
   const fetchedNullifiers = getNullifiersByBlockRange(db, startBlock, startBlock + 10n)
-  assert.is(fetchedNullifiers.length, 2)
+  assert.equal(fetchedNullifiers.length, 2)
 })
 
-test('ChainDB: Should insert and check it exists', (assert) => {
+test('ChainDB: Should insert and check it exists', () => {
   const db = createTestChainDB()
   const nullifiersBatch = createTestNullifiers(4)
   const changes = insertNullifiersBatch(db, nullifiersBatch)
-  assert.is(changes, nullifiersBatch.length)
+  assert.equal(changes, nullifiersBatch.length)
 
   for (const { nullifier, treeNumber } of nullifiersBatch) {
     assert.ok(nullifierExists(db, nullifier as Uint8Array, treeNumber))
   }
 })
 
-test('ChainDB: Should insert invalid nullifier', (assert) => {
+test('ChainDB: Should insert invalid nullifier', () => {
   const db = createTestChainDB()
   const nullifier = new Uint8Array(64)
   const nullifierEntry = {
@@ -81,101 +82,101 @@ test('ChainDB: Should insert invalid nullifier', (assert) => {
     treeNumber: 0
   }
 
-  assert.exception(async () => {
+  assert.throws(() => {
     insertNullifiersBatch(db, [nullifierEntry])
   })
 })
 
-test('ChainDB: Should fetch nullifier by block range', (assert) => {
+test('ChainDB: Should fetch nullifier by block range', () => {
   const db = createTestChainDB()
   const startBlock = 1000n
   const nullifiersBatch = createTestNullifiers(4, 1000n)
   const changes = insertNullifiersBatch(db, nullifiersBatch)
 
-  assert.is(changes, nullifiersBatch.length)
+  assert.equal(changes, nullifiersBatch.length)
   const fetchedNullifiers = getNullifiersByBlockRange(db, startBlock, startBlock + 10n)
-  assert.alike.coercively(nullifiersBatch, fetchedNullifiers)
+  assert.deepEqual(nullifiersBatch, fetchedNullifiers)
 })
 
-test('ChainDB: Should handle duplicate nullifiers id', (assert) => {
+test('ChainDB: Should handle duplicate nullifiers id', () => {
   const db = createTestChainDB()
   const nullifiersBatch = createTestNullifiers(2, 100n)
   let changes = insertNullifiersBatch(db, nullifiersBatch)
-  assert.is(changes, 2)
+  assert.equal(changes, 2)
 
   nullifiersBatch.forEach((b, index) => { b.blockNumber = 1000n + BigInt(index) })
   changes = insertNullifiersBatch(db, nullifiersBatch)
-  assert.is(changes, 2)
+  assert.equal(changes, 2)
 
   const nullifiers = getNullifiersByBlockRange(db, 1000n, 1011n)
   assert.ok(nullifiers)
-  assert.is(nullifiers.length, nullifiersBatch.length)
+  assert.equal(nullifiers.length, nullifiersBatch.length)
 
   for (let i = 0; i < nullifiersBatch.length; ++i) {
-    assert.alike.coercively(nullifiers[i]!.nullifier as Uint8Array, nullifiersBatch[i]?.nullifier)
-    assert.alike.coercively(nullifiers[i]!.transactionHash as Uint8Array, nullifiersBatch[i]?.transactionHash)
-    assert.is(nullifiers[i]!.treeNumber, nullifiersBatch[i]?.treeNumber)
+    assert.deepEqual(nullifiers[i]!.nullifier as Uint8Array, nullifiersBatch[i]?.nullifier)
+    assert.deepEqual(nullifiers[i]!.transactionHash as Uint8Array, nullifiersBatch[i]?.transactionHash)
+    assert.equal(nullifiers[i]!.treeNumber, nullifiersBatch[i]?.treeNumber)
   }
 })
 
-test('ChainDB: Should delete nullifier greater than given block', (assert) => {
+test('ChainDB: Should delete nullifier greater than given block', () => {
   const db = createTestChainDB()
   const nullifiers = createTestNullifiers(1)
   const changes = insertNullifiersBatch(db, nullifiers)
-  assert.is(changes, 1)
+  assert.equal(changes, 1)
 
   let exists = nullifierExists(db, nullifiers[0]!.nullifier as Uint8Array, nullifiers[0]!.treeNumber)
-  assert.is(exists, true)
+  assert.equal(exists, true)
 
   const deleted = deleteNullifiersFromBlock(db, nullifiers[0]!.blockNumber)
-  assert.is(deleted, 1)
+  assert.equal(deleted, 1)
 
   exists = nullifierExists(db, nullifiers[0]!.nullifier as Uint8Array, nullifiers[0]!.treeNumber)
-  assert.is(exists, false)
+  assert.equal(exists, false)
 })
 
-test('ChainDB: Should return all nullifiers', (assert) => {
+test('ChainDB: Should return all nullifiers', () => {
   const db = createTestChainDB()
   const batch = createTestNullifiers(5, 100n)
   insertNullifiersBatch(db, batch)
 
   const all = getAllNullifiers(db)
-  assert.is(all.length, 5)
+  assert.equal(all.length, 5)
   for (const row of all) {
     assert.ok(row.nullifier instanceof Uint8Array)
-    assert.is((row.nullifier as Uint8Array).length, 32)
+    assert.equal((row.nullifier as Uint8Array).length, 32)
   }
 })
 
-test('ChainDB: Should return empty array when no nullifiers exist', (assert) => {
+test('ChainDB: Should return empty array when no nullifiers exist', () => {
   const db = createTestChainDB()
   const all = getAllNullifiers(db)
-  assert.is(all.length, 0)
+  assert.equal(all.length, 0)
 })
 
-test('ChainDB: Should return nullifiers from block onwards', (assert) => {
+test('ChainDB: Should return nullifiers from block onwards', () => {
   const db = createTestChainDB()
   const early = createTestNullifiers(3, 100n)
   const late = createTestNullifiers(4, 200n)
   insertNullifiersBatch(db, [...early, ...late])
 
   const result = getNullifiersFromBlock(db, 200n)
-  assert.is(result.length, 4)
+  assert.equal(result.length, 4)
   for (const row of result) {
     assert.ok(row.blockNumber >= 200n)
   }
 })
 
-test('ChainDB: Should return empty when no nullifiers after block', (assert) => {
+test('ChainDB: Should return empty when no nullifiers after block', () => {
   const db = createTestChainDB()
   const batch = createTestNullifiers(3, 100n)
   insertNullifiersBatch(db, batch)
 
   const result = getNullifiersFromBlock(db, 500n)
-  assert.is(result.length, 0)
+  assert.equal(result.length, 0)
 })
 
-test('ChainDB: Should insert merkletree', (assert) => {
+test('ChainDB: Should insert merkletree', () => {
   const db = createTestChainDB()
   const leaves = createTestMerkleTree()
   const changes = setMerkleTree(db, {
@@ -183,13 +184,13 @@ test('ChainDB: Should insert merkletree', (assert) => {
     leaves,
     leafCount: 65536
   })
-  assert.is(changes, 1)
+  assert.equal(changes, 1)
 })
 
-test('ChainDB: Should throw on invalid merkletree insert', (assert) => {
+test('ChainDB: Should throw on invalid merkletree insert', () => {
   const db = createTestChainDB()
   const leaves = new Uint8Array(32)
-  assert.exception(() => {
+  assert.throws(() => {
     setMerkleTree(db, {
       treeNumber: 0,
       leaves,
@@ -198,10 +199,10 @@ test('ChainDB: Should throw on invalid merkletree insert', (assert) => {
   })
 })
 
-test('ChainDB: Should throw on invalid merkletree leafCount', (assert) => {
+test('ChainDB: Should throw on invalid merkletree leafCount', () => {
   const db = createTestChainDB()
   const leaves = createTestMerkleTree()
-  assert.exception(() => {
+  assert.throws(() => {
     setMerkleTree(db, {
       treeNumber: 0,
       leaves,
@@ -210,15 +211,15 @@ test('ChainDB: Should throw on invalid merkletree leafCount', (assert) => {
   })
 })
 
-test('ChainDB: Should insert shieldCommitments', (assert) => {
+test('ChainDB: Should insert shieldCommitments', () => {
   const db = createTestChainDB()
   const commitments = createTestShieldCommitments(8, 1000n)
 
   const inserted = insertCommitmentBatch(db, commitments)
-  assert.is(inserted, 8)
+  assert.equal(inserted, 8)
 })
 
-test('ChainDB: Should insert and fetch commitments', (assert) => {
+test('ChainDB: Should insert and fetch commitments', () => {
   const db = createTestChainDB()
 
   const startBlock = 1000n
@@ -227,15 +228,15 @@ test('ChainDB: Should insert and fetch commitments', (assert) => {
   const commitments = [...shields, ...transact]
 
   const inserted = insertCommitmentBatch(db, commitments)
-  assert.is(inserted, commitments.length)
+  assert.equal(inserted, commitments.length)
 
   const results = getCommitmentsByBlockRange(db, startBlock, startBlock * 2n)
-  assert.is(results.length, commitments.length)
+  assert.equal(results.length, commitments.length)
 
-  assert.alike.coercively(results, commitments)
+  assert.deepEqual(results, commitments)
 })
 
-test('ChainDB: Should find commitments by treePosition ranges', (assert) => {
+test('ChainDB: Should find commitments by treePosition ranges', () => {
   const db = createTestChainDB()
 
   const startBlock = 1000n
@@ -247,13 +248,13 @@ test('ChainDB: Should find commitments by treePosition ranges', (assert) => {
     .map(({ value }) => value)
 
   const inserted = insertCommitmentBatch(db, shuffleCommitments)
-  assert.is(inserted, commitments.length)
+  assert.equal(inserted, commitments.length)
 
   const results = getCommitmentsByLeafRange(db, 0, 0, 16)
-  assert.alike.coercively(results, commitments)
+  assert.deepEqual(results, commitments)
 })
 
-test('ChainDB: Should find commitments by treePosition ranges', (assert) => {
+test('ChainDB: Should find commitments by treePosition ranges', () => {
   const db = createTestChainDB()
 
   const startBlock = 1000n
@@ -262,83 +263,83 @@ test('ChainDB: Should find commitments by treePosition ranges', (assert) => {
   const shuffleCommitments = shuffleArray(commitments)
 
   const inserted = insertCommitmentBatch(db, shuffleCommitments)
-  assert.is(inserted, commitments.length)
+  assert.equal(inserted, commitments.length)
 
   const results = getCommitmentsByLeafRange(db, 0, 0, 16)
-  assert.alike.coercively(results, commitments)
+  assert.deepEqual(results, commitments)
 })
 
-test('ChainDB: Should find commitments by block ranges', (assert) => {
+test('ChainDB: Should find commitments by block ranges', () => {
   const db = createTestChainDB()
 
   const commitments = createTestShieldCommitments(16)
   const shuffleCommitments = shuffleArray(commitments)
 
   const inserted = insertCommitmentBatch(db, shuffleCommitments)
-  assert.is(inserted, commitments.length)
+  assert.equal(inserted, commitments.length)
 
   const startBlock = commitments[0]!.blockNumber
   const endBlock = commitments[commitments.length - 1]!.blockNumber
   const results = getCommitmentsByBlockRange(db, startBlock, endBlock)
-  assert.alike.coercively(results, commitments)
+  assert.deepEqual(results, commitments)
 })
 
-test('ChainDB: Should handle empty commitments', (assert) => {
+test('ChainDB: Should handle empty commitments', () => {
   const db = createTestChainDB()
-  assert.execution(() => {
+  assert.doesNotThrow(() => {
     insertCommitmentBatch(db, [])
   })
 })
 
-test('ChainDB: Should throw on invalid tree position', (assert) => {
+test('ChainDB: Should throw on invalid tree position', () => {
   const db = createTestChainDB()
   const commitment = createTestShieldCommitments(1)
   commitment[0]!.treePosition = 66_000
-  assert.exception(async () => {
+  assert.throws(() => {
     insertCommitmentBatch(db, commitment)
   })
 })
 
-test('ChainDB: Should throw on invalid commitment data', (assert) => {
+test('ChainDB: Should throw on invalid commitment data', () => {
   const db = createTestChainDB()
   const commitment = createTestShieldCommitments(1)
   commitment[0]!.treePosition = 66_000
   commitment[0]!.commitment = undefined
-  assert.exception(async () => {
+  assert.throws(() => {
     insertCommitmentBatch(db, commitment)
   })
 })
 
-test('ChainDB: Should validate scan state', (assert) => {
+test('ChainDB: Should validate scan state', () => {
   const db = createTestChainDB()
   const inserted = updateSyncState(db, 1, 54843n)
-  assert.is(inserted, 1)
+  assert.equal(inserted, 1)
 
   const syncState = getSyncState(db, 1)
   if (syncState) {
-    assert.is(syncState.chainID, 1)
-    assert.is(syncState.lastBlockHeight, 54843n)
+    assert.equal(syncState.chainID, 1)
+    assert.equal(syncState.lastBlockHeight, 54843n)
   } else {
     assert.fail()
   }
 })
 
-test('ChainDB: Should insert and fetch unshields', (assert) => {
+test('ChainDB: Should insert and fetch unshields', () => {
   const db = createTestChainDB()
   const unshields = createTestUnshields(5)
   const inserted = insertUnshieldBatch(db, unshields)
-  assert.is(inserted, unshields.length)
+  assert.equal(inserted, unshields.length)
 })
 
-test('ChainDB: Should fetch unshields by blockRange', (assert) => {
+test('ChainDB: Should fetch unshields by blockRange', () => {
   const db = createTestChainDB()
 
   const startBlock = 10000n
   const unshields = createTestUnshields(5, startBlock)
   const inserted = insertUnshieldBatch(db, unshields)
-  assert.is(inserted, unshields.length)
+  assert.equal(inserted, unshields.length)
 
   const endBlock = unshields[unshields.length - 1]!.blockNumber
   const fetched = getUnshieldsByBlockRange(db, startBlock, endBlock)
-  assert.alike.coercively(unshields, fetched)
+  assert.deepEqual(unshields, fetched)
 })

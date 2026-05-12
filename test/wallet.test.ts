@@ -1,4 +1,5 @@
-import { test } from 'brittle'
+import assert from 'node:assert'
+import { test } from 'node:test'
 
 import {
   createWallet,
@@ -31,7 +32,7 @@ import {
   resetTestCounters,
 } from './utils'
 
-test('Wallet Database - Wallets: create and retrieve', (t) => {
+test('Wallet Database - Wallets: create and retrieve', () => {
   resetTestCounters()
   const db = createTestWalletDB()
   const wallet = createTestWallet()
@@ -40,12 +41,12 @@ test('Wallet Database - Wallets: create and retrieve', (t) => {
 
   const retrieved = getWallet(db, wallet.id)
 
-  t.ok(retrieved)
-  t.is(retrieved?.id, wallet.id)
-  t.is(retrieved?.name, wallet.name)
+  assert.ok(retrieved)
+  assert.equal(retrieved?.id, wallet.id)
+  assert.equal(retrieved?.name, wallet.name)
 })
 
-test('Wallet Database - Wallets: list all', (t) => {
+test('Wallet Database - Wallets: list all', () => {
   resetTestCounters()
   const db = createTestWalletDB()
   const wallet1 = createTestWallet()
@@ -56,10 +57,10 @@ test('Wallet Database - Wallets: list all', (t) => {
 
   const wallets = listWallets(db)
 
-  t.is(wallets.length, 2)
+  assert.equal(wallets.length, 2)
 })
 
-test('Wallet Database - Wallets: delete wallet', (t) => {
+test('Wallet Database - Wallets: delete wallet', () => {
   resetTestCounters()
   const db = createTestWalletDB()
   const wallet = createTestWallet()
@@ -68,11 +69,11 @@ test('Wallet Database - Wallets: delete wallet', (t) => {
 
   const deleted = deleteWallet(db, wallet.id)
 
-  t.is(deleted, 1)
-  t.is(getWallet(db, wallet.id), undefined)
+  assert.equal(deleted, 1)
+  assert.equal(getWallet(db, wallet.id), undefined)
 })
 
-test('Wallet Database - Notes: insert and retrieve', (t) => {
+test('Wallet Database - Notes: insert and retrieve', () => {
   resetTestCounters()
   const db = createTestWalletDB()
   const wallet = createTestWallet()
@@ -83,12 +84,12 @@ test('Wallet Database - Notes: insert and retrieve', (t) => {
 
   const retrieved = getNoteByCommitment(db, note.commitment as Uint8Array)
 
-  t.ok(retrieved)
-  t.alike(retrieved?.commitment, note.commitment)
-  t.is(retrieved?.amount, note.amount)
+  assert.ok(retrieved)
+  assert.deepEqual(retrieved?.commitment, note.commitment)
+  assert.equal(retrieved?.amount, note.amount)
 })
 
-test('Wallet Database - Notes: batch insert', (t) => {
+test('Wallet Database - Notes: batch insert', () => {
   resetTestCounters()
   const db = createTestWalletDB()
   const wallet = createTestWallet()
@@ -101,10 +102,10 @@ test('Wallet Database - Notes: batch insert', (t) => {
   createWallet(db, wallet)
   const count = insertNotesBatch(db, notes)
 
-  t.is(count, 3)
+  assert.equal(count, 3)
 })
 
-test('Wallet Database - Notes: get unspent notes', (t) => {
+test('Wallet Database - Notes: get unspent notes', () => {
   resetTestCounters()
   const db = createTestWalletDB()
   const wallet = createTestWallet()
@@ -119,11 +120,11 @@ test('Wallet Database - Notes: get unspent notes', (t) => {
 
   const unspent = getUnspentNotes(db, wallet.id)
 
-  t.is(unspent.length, 2)
-  t.ok(unspent.every((n) => !n.spent))
+  assert.equal(unspent.length, 2)
+  assert.ok(unspent.every((n) => !n.spent))
 })
 
-test('Wallet Database - Notes: get unspent notes by token', (t) => {
+test('Wallet Database - Notes: get unspent notes by token', () => {
   resetTestCounters()
   const db = createTestWalletDB()
   const wallet = createTestWallet()
@@ -141,11 +142,11 @@ test('Wallet Database - Notes: get unspent notes by token', (t) => {
 
   const ethNotes = getUnspentNotesByToken(db, wallet.id, ethToken)
 
-  t.is(ethNotes.length, 2)
-  t.ok(ethNotes.every((n) => n.token === ethToken))
+  assert.equal(ethNotes.length, 2)
+  assert.ok(ethNotes.every((n) => n.token === ethToken))
 })
 
-test('Wallet Database - Notes: mark note as spent', (t) => {
+test('Wallet Database - Notes: mark note as spent', () => {
   resetTestCounters()
   const db = createTestWalletDB()
   const wallet = createTestWallet()
@@ -159,12 +160,12 @@ test('Wallet Database - Notes: mark note as spent', (t) => {
 
   const retrieved = getNoteByCommitment(db, note.commitment as Uint8Array)
 
-  t.ok(retrieved)
-  t.is(retrieved?.spent, true)
-  t.alike.coercively(retrieved?.spentTxid, spentTxid)
+  assert.ok(retrieved)
+  assert.equal(retrieved?.spent, true)
+  assert.deepEqual(retrieved?.spentTxid, spentTxid)
 })
 
-test('Wallet Database - Notes: batch mark notes as spent', (t) => {
+test('Wallet Database - Notes: batch mark notes as spent', () => {
   resetTestCounters()
   const db = createTestWalletDB()
   const wallet = createTestWallet()
@@ -180,12 +181,12 @@ test('Wallet Database - Notes: batch mark notes as spent', (t) => {
 
   const count = markNotesSpentBatch(db, commitments, spentTxid)
 
-  t.is(count, 2)
+  assert.equal(count, 2)
   const unspent = getUnspentNotes(db, wallet.id)
-  t.is(unspent.length, 0)
+  assert.equal(unspent.length, 0)
 })
 
-test('Wallet Database - Balances: recalculate from notes', (t) => {
+test('Wallet Database - Balances: recalculate from notes', () => {
   resetTestCounters()
   const db = createTestWalletDB()
   const wallet = createTestWallet()
@@ -201,14 +202,14 @@ test('Wallet Database - Balances: recalculate from notes', (t) => {
 
   const balance = recalculateBalance(db, wallet.id, token)
 
-  t.is(balance, 300n) // 100 + 200, spent note excluded
+  assert.equal(balance, 300n) // 100 + 200, spent note excluded
 
   const retrieved = getBalance(db, wallet.id, token)
-  t.ok(retrieved)
-  t.is(retrieved?.amount, 300n)
+  assert.ok(retrieved)
+  assert.equal(retrieved?.amount, 300n)
 })
 
-test('Wallet Database - Balances: recalculate all balances', (t) => {
+test('Wallet Database - Balances: recalculate all balances', () => {
   resetTestCounters()
   const db = createTestWalletDB()
   const wallet = createTestWallet()
@@ -228,17 +229,17 @@ test('Wallet Database - Balances: recalculate all balances', (t) => {
 
   const balances = getAllBalances(db, wallet.id)
 
-  t.is(balances.length, 2)
+  assert.equal(balances.length, 2)
   const ethBalance = balances.find((b) => b.token === ethToken.toLowerCase())
   const daiBalance = balances.find((b) => b.token === daiToken.toLowerCase())
 
-  t.ok(ethBalance)
-  t.is(ethBalance?.amount, 300n)
-  t.ok(daiBalance)
-  t.is(daiBalance?.amount, 500n)
+  assert.ok(ethBalance)
+  assert.equal(ethBalance?.amount, 300n)
+  assert.ok(daiBalance)
+  assert.equal(daiBalance?.amount, 500n)
 })
 
-test('Wallet Database - Balances: handle zero balance', (t) => {
+test('Wallet Database - Balances: handle zero balance', () => {
   resetTestCounters()
   const db = createTestWalletDB()
   const wallet = createTestWallet()
@@ -248,10 +249,10 @@ test('Wallet Database - Balances: handle zero balance', (t) => {
 
   const balance = recalculateBalance(db, wallet.id, token)
 
-  t.is(balance, 0n)
+  assert.equal(balance, 0n)
 })
 
-test('Wallet Database - Scan State: set and get', (t) => {
+test('Wallet Database - Scan State: set and get', () => {
   resetTestCounters()
   const db = createTestWalletDB()
   const wallet = createTestWallet()
@@ -262,11 +263,11 @@ test('Wallet Database - Scan State: set and get', (t) => {
 
   const state = getScanState(db, wallet.id, chainId)
 
-  t.ok(state)
-  t.is(state?.lastScannedBlock, 1000n)
+  assert.ok(state)
+  assert.equal(state?.lastScannedBlock, 1000n)
 })
 
-test('Wallet Database - Scan State: update existing', (t) => {
+test('Wallet Database - Scan State: update existing', () => {
   resetTestCounters()
   const db = createTestWalletDB()
   const wallet = createTestWallet()
@@ -278,10 +279,10 @@ test('Wallet Database - Scan State: update existing', (t) => {
 
   const state = getScanState(db, wallet.id, chainId)
 
-  t.is(state?.lastScannedBlock, 2000n)
+  assert.equal(state?.lastScannedBlock, 2000n)
 })
 
-test('Wallet Database - Scan State: support multi-chain', (t) => {
+test('Wallet Database - Scan State: support multi-chain', () => {
   resetTestCounters()
   const db = createTestWalletDB()
   const wallet = createTestWallet()
@@ -293,11 +294,11 @@ test('Wallet Database - Scan State: support multi-chain', (t) => {
   const ethState = getScanState(db, wallet.id, 1)
   const polyState = getScanState(db, wallet.id, 137)
 
-  t.is(ethState?.lastScannedBlock, 1000n)
-  t.is(polyState?.lastScannedBlock, 5000n)
+  assert.equal(ethState?.lastScannedBlock, 1000n)
+  assert.equal(polyState?.lastScannedBlock, 5000n)
 })
 
-test('Wallet Database - Transaction History: insert and retrieve', (t) => {
+test('Wallet Database - Transaction History: insert and retrieve', () => {
   resetTestCounters()
   const db = createTestWalletDB()
   const wallet = createTestWallet()
@@ -315,12 +316,12 @@ test('Wallet Database - Transaction History: insert and retrieve', (t) => {
 
   const history = getTxHistory(db, wallet.id)
 
-  t.is(history.length, 1)
-  t.is(history[0]!.id, tx.id)
-  t.is(history[0]!.type, 'shield')
+  assert.equal(history.length, 1)
+  assert.equal(history[0]!.id, tx.id)
+  assert.equal(history[0]!.type, 'shield')
 })
 
-test('Wallet Database - Transaction History: return descending order', (t) => {
+test('Wallet Database - Transaction History: return descending order', () => {
   resetTestCounters()
   const db = createTestWalletDB()
   const wallet = createTestWallet()
@@ -358,13 +359,13 @@ test('Wallet Database - Transaction History: return descending order', (t) => {
 
   const history = getTxHistory(db, wallet.id)
 
-  t.is(history.length, 3)
-  t.is(history[0]!.blockNumber, 3000n) // Most recent first
-  t.is(history[1]!.blockNumber, 2000n)
-  t.is(history[2]!.blockNumber, 1000n)
+  assert.equal(history.length, 3)
+  assert.equal(history[0]!.blockNumber, 3000n) // Most recent first
+  assert.equal(history[1]!.blockNumber, 2000n)
+  assert.equal(history[2]!.blockNumber, 1000n)
 })
 
-test('Wallet Database - Stats: return correct counts', (t) => {
+test('Wallet Database - Stats: return correct counts', () => {
   resetTestCounters()
   const db = createTestWalletDB()
   const wallet = createTestWallet()
@@ -380,12 +381,12 @@ test('Wallet Database - Stats: return correct counts', (t) => {
 
   const stats = getWalletDBStats(db, wallet.id)
 
-  t.is(stats.notes, 3)
-  t.is(stats.unspentNotes, 2)
-  t.is(stats.balances, 1) // All notes same token
+  assert.equal(stats.notes, 3)
+  assert.equal(stats.unspentNotes, 2)
+  assert.equal(stats.balances, 1) // All notes same token
 })
 
-test('Wallet Database - Cascade Delete: delete wallet data', (t) => {
+test('Wallet Database - Cascade Delete: delete wallet data', () => {
   resetTestCounters()
   const db = createTestWalletDB()
   const wallet = createTestWallet()
@@ -397,12 +398,12 @@ test('Wallet Database - Cascade Delete: delete wallet data', (t) => {
 
   deleteWallet(db, wallet.id)
 
-  t.is(getWallet(db, wallet.id), undefined)
-  t.is(getNoteByCommitment(db, note.commitment as Uint8Array), undefined)
-  t.is(getAllBalances(db, wallet.id).length, 0)
+  assert.equal(getWallet(db, wallet.id), undefined)
+  assert.equal(getNoteByCommitment(db, note.commitment as Uint8Array), undefined)
+  assert.equal(getAllBalances(db, wallet.id).length, 0)
 })
 
-test('Wallet Database - Token Case: insertNote stores token lowercase', (t) => {
+test('Wallet Database - Token Case: insertNote stores token lowercase', () => {
   resetTestCounters()
   const db = createTestWalletDB()
   const wallet = createTestWallet()
@@ -413,10 +414,10 @@ test('Wallet Database - Token Case: insertNote stores token lowercase', (t) => {
   insertNote(db, note)
 
   const retrieved = getNoteByCommitment(db, note.commitment as Uint8Array)
-  t.is(retrieved?.token, checksumAddress.toLowerCase())
+  assert.equal(retrieved?.token, checksumAddress.toLowerCase())
 })
 
-test('Wallet Database - Token Case: insertNotesBatch stores tokens lowercase', (t) => {
+test('Wallet Database - Token Case: insertNotesBatch stores tokens lowercase', () => {
   resetTestCounters()
   const db = createTestWalletDB()
   const wallet = createTestWallet()
@@ -431,11 +432,11 @@ test('Wallet Database - Token Case: insertNotesBatch stores tokens lowercase', (
   insertNotesBatch(db, notes)
 
   const allNotes = getUnspentNotes(db, wallet.id)
-  t.is(allNotes.length, 2)
-  t.ok(allNotes.every((n) => n.token === n.token.toLowerCase()))
+  assert.equal(allNotes.length, 2)
+  assert.ok(allNotes.every((n) => n.token === n.token.toLowerCase()))
 })
 
-test('Wallet Database - Token Case: getBalance accepts mixed-case input', (t) => {
+test('Wallet Database - Token Case: getBalance accepts mixed-case input', () => {
   resetTestCounters()
   const db = createTestWalletDB()
   const wallet = createTestWallet()
@@ -449,12 +450,12 @@ test('Wallet Database - Token Case: getBalance accepts mixed-case input', (t) =>
   }))
   recalculateBalance(db, wallet.id, checksumAddress)
 
-  t.is(getBalance(db, wallet.id, checksumAddress)?.amount, 500n)
-  t.is(getBalance(db, wallet.id, checksumAddress.toLowerCase())?.amount, 500n)
-  t.is(getBalance(db, wallet.id, checksumAddress.toUpperCase())?.amount, 500n)
+  assert.equal(getBalance(db, wallet.id, checksumAddress)?.amount, 500n)
+  assert.equal(getBalance(db, wallet.id, checksumAddress.toLowerCase())?.amount, 500n)
+  assert.equal(getBalance(db, wallet.id, checksumAddress.toUpperCase())?.amount, 500n)
 })
 
-test('Wallet Database - Token Case: getUnspentNotesByToken accepts mixed-case input', (t) => {
+test('Wallet Database - Token Case: getUnspentNotesByToken accepts mixed-case input', () => {
   resetTestCounters()
   const db = createTestWalletDB()
   const wallet = createTestWallet()
@@ -466,12 +467,12 @@ test('Wallet Database - Token Case: getUnspentNotesByToken accepts mixed-case in
     createTestNote({ walletId: wallet.id, token: checksumAddress }),
   ])
 
-  t.is(getUnspentNotesByToken(db, wallet.id, checksumAddress).length, 2)
-  t.is(getUnspentNotesByToken(db, wallet.id, checksumAddress.toLowerCase()).length, 2)
-  t.is(getUnspentNotesByToken(db, wallet.id, checksumAddress.toUpperCase()).length, 2)
+  assert.equal(getUnspentNotesByToken(db, wallet.id, checksumAddress).length, 2)
+  assert.equal(getUnspentNotesByToken(db, wallet.id, checksumAddress.toLowerCase()).length, 2)
+  assert.equal(getUnspentNotesByToken(db, wallet.id, checksumAddress.toUpperCase()).length, 2)
 })
 
-test('Wallet Database - Token Case: same address in different cases dedupes to one balance row', (t) => {
+test('Wallet Database - Token Case: same address in different cases dedupes to one balance row', () => {
   resetTestCounters()
   const db = createTestWalletDB()
   const wallet = createTestWallet()
@@ -486,7 +487,7 @@ test('Wallet Database - Token Case: same address in different cases dedupes to o
   recalculateAllBalances(db, wallet.id)
 
   const balances = getAllBalances(db, wallet.id)
-  t.is(balances.length, 1)
-  t.is(balances[0]?.token, checksumAddress.toLowerCase())
-  t.is(balances[0]?.amount, 600n)
+  assert.equal(balances.length, 1)
+  assert.equal(balances[0]?.token, checksumAddress.toLowerCase())
+  assert.equal(balances[0]?.amount, 600n)
 })

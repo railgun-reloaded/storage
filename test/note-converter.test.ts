@@ -1,4 +1,5 @@
-import { test } from 'brittle'
+import assert from 'node:assert'
+import { test } from 'node:test'
 
 import type { NoteInput } from '../src/wallet/note-converter'
 import { toDBNote, toDBNotes } from '../src/wallet/note-converter'
@@ -21,55 +22,55 @@ const BASE_INPUT: NoteInput = {
   treePosition: 7,
 }
 
-test('toDBNote: converts hex commitment to Uint8Array', (t) => {
+test('toDBNote: converts hex commitment to Uint8Array', () => {
   const result = toDBNote(BASE_INPUT)
-  t.ok(result.commitment instanceof Uint8Array)
-  t.is(result.commitment.length, 32)
-  t.is(result.commitment[0], 0xaa)
+  assert.ok(result.commitment instanceof Uint8Array)
+  assert.equal(result.commitment.length, 32)
+  assert.equal(result.commitment[0], 0xaa)
 })
 
-test('toDBNote: converts hex nullifier to Uint8Array', (t) => {
+test('toDBNote: converts hex nullifier to Uint8Array', () => {
   const result = toDBNote(BASE_INPUT)
-  t.ok(result.nullifier instanceof Uint8Array)
-  t.is(result.nullifier.length, 32)
-  t.is(result.nullifier[0], 0x11)
+  assert.ok(result.nullifier instanceof Uint8Array)
+  assert.equal(result.nullifier.length, 32)
+  assert.equal(result.nullifier[0], 0x11)
 })
 
-test('toDBNote: passes through scalar fields unchanged', (t) => {
+test('toDBNote: passes through scalar fields unchanged', () => {
   const result = toDBNote(BASE_INPUT)
-  t.is(result.walletId, BASE_INPUT.walletId)
-  t.is(result.token, BASE_INPUT.token)
-  t.is(result.amount, BASE_INPUT.amount)
-  t.is(result.blockNumber, BASE_INPUT.blockNumber)
-  t.is(result.treeNumber, BASE_INPUT.treeNumber)
-  t.is(result.treePosition, BASE_INPUT.treePosition)
+  assert.equal(result.walletId, BASE_INPUT.walletId)
+  assert.equal(result.token, BASE_INPUT.token)
+  assert.equal(result.amount, BASE_INPUT.amount)
+  assert.equal(result.blockNumber, BASE_INPUT.blockNumber)
+  assert.equal(result.treeNumber, BASE_INPUT.treeNumber)
+  assert.equal(result.treePosition, BASE_INPUT.treePosition)
 })
 
-test('toDBNote: sets spent to false', (t) => {
+test('toDBNote: sets spent to false', () => {
   const result = toDBNote(BASE_INPUT)
-  t.is(result.spent, false)
+  assert.equal(result.spent, false)
 })
 
-test('toDBNotes: converts an array of inputs', (t) => {
+test('toDBNotes: converts an array of inputs', () => {
   const inputs: NoteInput[] = [
     { ...BASE_INPUT, commitment: '0xaabb000000000000000000000000000000000000000000000000000000000000', nullifier: '0x1100000000000000000000000000000000000000000000000000000000000000' },
     { ...BASE_INPUT, commitment: '0xccdd000000000000000000000000000000000000000000000000000000000000', nullifier: '0x2200000000000000000000000000000000000000000000000000000000000000' },
   ]
   const results = toDBNotes(inputs)
-  t.is(results.length, 2)
-  t.ok(results[0]!.commitment instanceof Uint8Array)
-  t.is(results[0]!.commitment[0], 0xaa)
-  t.ok(results[1]!.commitment instanceof Uint8Array)
-  t.is(results[1]!.commitment[0], 0xcc)
+  assert.equal(results.length, 2)
+  assert.ok(results[0]!.commitment instanceof Uint8Array)
+  assert.equal(results[0]!.commitment[0], 0xaa)
+  assert.ok(results[1]!.commitment instanceof Uint8Array)
+  assert.equal(results[1]!.commitment[0], 0xcc)
 })
 
-test('toDBNotes: returns empty array for empty input', (t) => {
+test('toDBNotes: returns empty array for empty input', () => {
   const results = toDBNotes([])
-  t.is(results.length, 0)
-  t.ok(Array.isArray(results))
+  assert.equal(results.length, 0)
+  assert.ok(Array.isArray(results))
 })
 
-test('toDBNotes + insertNotesBatch round-trip persists correctly', (t) => {
+test('toDBNotes + insertNotesBatch round-trip persists correctly', () => {
   const db = createTestWalletDB()
   const wallet = createTestWallet()
   createWallet(db, wallet)
@@ -99,17 +100,17 @@ test('toDBNotes + insertNotesBatch round-trip persists correctly', (t) => {
 
   const dbNotes = toDBNotes(inputs)
   const count = insertNotesBatch(db, dbNotes)
-  t.is(count, 2)
+  assert.equal(count, 2)
 
   const found = getNoteByCommitment(db, dbNotes[0]!.commitment as Uint8Array)
-  t.ok(found !== undefined)
-  t.is(found!.amount, 100n)
-  t.is(found!.spent, false)
-  t.is(found!.treeNumber, 1)
-  t.is(found!.treePosition, 3)
+  assert.ok(found !== undefined)
+  assert.equal(found!.amount, 100n)
+  assert.equal(found!.spent, false)
+  assert.equal(found!.treeNumber, 1)
+  assert.equal(found!.treePosition, 3)
 })
 
-test('toDBNotes + insertNotesBatch handles duplicates idempotently', (t) => {
+test('toDBNotes + insertNotesBatch handles duplicates idempotently', () => {
   const db = createTestWalletDB()
   const wallet = createTestWallet()
   createWallet(db, wallet)
@@ -130,5 +131,5 @@ test('toDBNotes + insertNotesBatch handles duplicates idempotently', (t) => {
   const dbNotes = toDBNotes(inputs)
   insertNotesBatch(db, dbNotes)
   const secondCount = insertNotesBatch(db, toDBNotes(inputs))
-  t.is(secondCount, 0)
+  assert.equal(secondCount, 0)
 })
