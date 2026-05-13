@@ -7,7 +7,7 @@
   "scripts": {
     "build": "npm run db:generate && tsc --build",
     "clean": "tsc --build --clean",
-    "prepare": "tsc --build",
+    "prepare": "npm run build",
     "lint": "eslint",
     "lint:fix": "eslint --fix",
     "pretest": "npm run build",
