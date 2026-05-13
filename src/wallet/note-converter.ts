@@ -5,8 +5,11 @@ import type { DBNewNote } from './schema'
 /**
  * Input contract for creating a new note record.
  * Consumers map their domain types into this shape before persisting.
- * Fields commitment and nullifier are hex strings (with or without `0x` prefix);
- * all other fields are passed through unchanged.
+ * Hex string fields (`commitment`, `nullifier`, `tokenSubID`) accept values
+ * with or without a `0x` prefix; all other fields are passed through unchanged.
+ * `tokenType` is the integer token-class enum (0 = ERC20, 1 = ERC721,
+ * 2 = ERC1155). `tokenSubID` is a 32-byte sub-identifier; for ERC20 it is
+ * the canonical 256-bit null (64 zero hex chars).
  */
 type NoteInput = {
   commitment: string
@@ -14,6 +17,8 @@ type NoteInput = {
   nullifier: string
   token: string
   amount: bigint
+  tokenType: number
+  tokenSubID: string
   blockNumber: bigint
   treeNumber: number
   treePosition: number
@@ -32,6 +37,8 @@ function toDBNote (input: NoteInput): DBNewNote {
     nullifier: hexToBytes(input.nullifier),
     token: input.token,
     amount: input.amount,
+    tokenType: input.tokenType,
+    tokenSubID: hexToBytes(input.tokenSubID),
     spent: false,
     blockNumber: input.blockNumber,
     treeNumber: input.treeNumber,

@@ -35,6 +35,10 @@ const notes = sqliteTable(
     nullifier: uint8Array('nullifier').notNull().unique(),
     token: text('token').notNull(),
     amount: bigint('amount').notNull(),
+    tokenType: integer('token_type').notNull().default(0),
+    tokenSubID: uint8Array('token_sub_id')
+      .notNull()
+      .default(sql`x'${sql.raw('00'.repeat(32))}'`),
     spent: integer('spent', { mode: 'boolean' }).notNull().default(false),
     spentTxid: uint8Array('spent_txid'),
     blockNumber: bigint('block_number').notNull(),
