@@ -10,6 +10,13 @@ import { index, integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlit
 import { bigint, uint8Array } from '../types/custom-types'
 
 /**
+ * Canonical 256-bit null sub-ID for ERC20 notes, expressed as a SQLite blob
+ * literal (`x'00…00'`) so existing rows back-fill to the same byte pattern
+ * upstream code uses when constructing an ERC20 TokenData.
+ */
+const ERC20_NULL_TOKEN_SUB_ID = sql.raw(`x'${'00'.repeat(32)}'`)
+
+/**
  * Stores metadata and encrypted keys for each wallet.
  */
 const wallets = sqliteTable('wallets', {
@@ -36,9 +43,7 @@ const notes = sqliteTable(
     token: text('token').notNull(),
     amount: bigint('amount').notNull(),
     tokenType: integer('token_type').notNull().default(0),
-    tokenSubID: uint8Array('token_sub_id')
-      .notNull()
-      .default(sql`x'${sql.raw('00'.repeat(32))}'`),
+    tokenSubID: uint8Array('token_sub_id').notNull().default(ERC20_NULL_TOKEN_SUB_ID),
     spent: integer('spent', { mode: 'boolean' }).notNull().default(false),
     spentTxid: uint8Array('spent_txid'),
     blockNumber: bigint('block_number').notNull(),
