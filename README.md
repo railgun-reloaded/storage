@@ -112,7 +112,7 @@ createChainDB(config: ChainDBConfig): ChainDB
 
 **ChainDBConfig:**
 - `path: string` - Database file path (use `:memory:` for in-memory)
-- `enableWAL?: boolean` - Enable Write-Ahead Logging (default: true)
+- `enableWAL?: boolean` - Enable Write-Ahead Logging (default: false)
 - `runMigrations?: boolean` - Run migrations on init (default: true)
 - `migrationsFolder?: string` - Path to migrations (default: './drizzle/chain')
 - `verbose?: boolean` - Enable logging (default: false)
@@ -198,7 +198,7 @@ createWalletDB(config: WalletDBConfig): WalletDB
 
 **WalletDBConfig:**
 - `path: string` - Database file path (use `:memory:` for in-memory)
-- `enableWAL?: boolean` - Enable Write-Ahead Logging (default: true)
+- `enableWAL?: boolean` - Enable Write-Ahead Logging (default: false)
 - `runMigrations?: boolean` - Run migrations on init (default: true)
 - `migrationsFolder?: string` - Path to migrations (default: './drizzle/wallet')
 - `verbose?: boolean` - Enable logging (default: false)
@@ -483,7 +483,7 @@ async function scanWallets(chainDb: ChainDB, walletDbs: WalletDB[], chainId: num
 ### Write Performance
 - Use batch operations (`insertNullifiersBatch`, `insertNotesBatch`) for bulk writes
 - All batch operations use transactions internally
-- WAL mode enabled by default for better write concurrency
+- WAL mode available via `enableWAL: true` for better write concurrency (off by default)
 
 ### Read Performance
 - Critical indexes are pre-configured
@@ -576,7 +576,7 @@ See [DESIGN.md](./DESIGN.md) for detailed design decisions and schema analysis.
 - **BigInt as TEXT**: Human-readable, arbitrary precision
 - **Blobs as Buffer**: Efficient binary storage for hashes
 - **Composite PKs**: Unique constraints on multi-column keys
-- **WAL Mode**: Better read concurrency
+- **Optional WAL Mode**: Better read concurrency when enabled via `enableWAL: true`
 - **Two Configs**: Separate migration paths for chain/wallet
 
 ## Roadmap

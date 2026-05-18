@@ -56,7 +56,6 @@ const notes = sqliteTable(
   (table) => ({
     walletSpentIdx: index('notes_wallet_spent_idx').on(table.walletId, table.spent),
     walletTokenIdx: index('notes_wallet_token_idx').on(table.walletId, table.token),
-    nullifierIdx: index('notes_nullifier_idx').on(table.nullifier),
     treeLeafIdx: index('notes_tree_leaf_idx').on(table.treeNumber, table.treePosition),
   })
 )
