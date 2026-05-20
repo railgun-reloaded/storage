@@ -4,8 +4,6 @@ import { test } from 'node:test'
 import {
   createWallet,
   deleteWallet,
-  getAllBalances,
-  getBalance,
   getNoteByCommitment,
   getScanState,
   getTxHistory,
@@ -19,8 +17,6 @@ import {
   listWallets,
   markNoteSpent,
   markNotesSpentBatch,
-  recalculateAllBalances,
-  recalculateBalance,
   updateScanState,
 } from '../src/wallet/index'
 
@@ -186,72 +182,6 @@ test('Wallet Database - Notes: batch mark notes as spent', () => {
   assert.equal(unspent.length, 0)
 })
 
-test('Wallet Database - Balances: recalculate from notes', () => {
-  resetTestCounters()
-  const db = createTestWalletDB()
-  const wallet = createTestWallet()
-  const token = '0x0000000000000000000000000000000000000000'
-  const notes = [
-    createTestNote({ walletId: wallet.id, token, amount: 100n, spent: false }),
-    createTestNote({ walletId: wallet.id, token, amount: 200n, spent: false }),
-    createTestNote({ walletId: wallet.id, token, amount: 300n, spent: true }),
-  ]
-
-  createWallet(db, wallet)
-  insertNotesBatch(db, notes)
-
-  const balance = recalculateBalance(db, wallet.id, 1, token)
-
-  assert.equal(balance, 300n) // 100 + 200, spent note excluded
-
-  const retrieved = getBalance(db, wallet.id, 1, token)
-  assert.ok(retrieved)
-  assert.equal(retrieved?.amount, 300n)
-})
-
-test('Wallet Database - Balances: recalculate all balances', () => {
-  resetTestCounters()
-  const db = createTestWalletDB()
-  const wallet = createTestWallet()
-  const ethToken = '0x0000000000000000000000000000000000000000'
-  const daiToken = '0x6B175474E89094C44Da98b954EedeAC495271d0F'
-
-  const notes = [
-    createTestNote({ walletId: wallet.id, token: ethToken, amount: 100n, spent: false }),
-    createTestNote({ walletId: wallet.id, token: ethToken, amount: 200n, spent: false }),
-    createTestNote({ walletId: wallet.id, token: daiToken, amount: 500n, spent: false }),
-  ]
-
-  createWallet(db, wallet)
-  insertNotesBatch(db, notes)
-
-  recalculateAllBalances(db, wallet.id, 1)
-
-  const balances = getAllBalances(db, wallet.id, 1)
-
-  assert.equal(balances.length, 2)
-  const ethBalance = balances.find((b) => b.token === ethToken.toLowerCase())
-  const daiBalance = balances.find((b) => b.token === daiToken.toLowerCase())
-
-  assert.ok(ethBalance)
-  assert.equal(ethBalance?.amount, 300n)
-  assert.ok(daiBalance)
-  assert.equal(daiBalance?.amount, 500n)
-})
-
-test('Wallet Database - Balances: handle zero balance', () => {
-  resetTestCounters()
-  const db = createTestWalletDB()
-  const wallet = createTestWallet()
-  const token = '0x0000000000000000000000000000000000000000'
-
-  createWallet(db, wallet)
-
-  const balance = recalculateBalance(db, wallet.id, 1, token)
-
-  assert.equal(balance, 0n)
-})
-
 test('Wallet Database - Scan State: set and get', () => {
   resetTestCounters()
   const db = createTestWalletDB()
@@ -381,13 +311,11 @@ test('Wallet Database - Stats: return correct counts', () => {
 
   createWallet(db, wallet)
   insertNotesBatch(db, notes)
-  recalculateAllBalances(db, wallet.id, 1)
 
   const stats = getWalletDBStats(db, wallet.id)
 
   assert.equal(stats.notes, 3)
   assert.equal(stats.unspentNotes, 2)
-  assert.equal(stats.balances, 1) // All notes same token
 })
 
 test('Wallet Database - Cascade Delete: delete wallet data', () => {
@@ -398,13 +326,11 @@ test('Wallet Database - Cascade Delete: delete wallet data', () => {
 
   createWallet(db, wallet)
   insertNote(db, note)
-  recalculateAllBalances(db, wallet.id, 1)
 
   deleteWallet(db, wallet.id)
 
   assert.equal(getWallet(db, wallet.id), undefined)
   assert.equal(getNoteByCommitment(db, note.commitment as Uint8Array), undefined)
-  assert.equal(getAllBalances(db, wallet.id, 1).length, 0)
 })
 
 test('Wallet Database - Token Case: insertNote stores token lowercase', () => {
@@ -440,25 +366,6 @@ test('Wallet Database - Token Case: insertNotesBatch stores tokens lowercase', (
   assert.ok(allNotes.every((n) => n.token === n.token.toLowerCase()))
 })
 
-test('Wallet Database - Token Case: getBalance accepts mixed-case input', () => {
-  resetTestCounters()
-  const db = createTestWalletDB()
-  const wallet = createTestWallet()
-  const checksumAddress = '0x6B175474E89094C44Da98b954EedeAC495271d0F'
-
-  createWallet(db, wallet)
-  insertNote(db, createTestNote({
-    walletId: wallet.id,
-    token: checksumAddress,
-    amount: 500n,
-  }))
-  recalculateBalance(db, wallet.id, 1, checksumAddress)
-
-  assert.equal(getBalance(db, wallet.id, 1, checksumAddress)?.amount, 500n)
-  assert.equal(getBalance(db, wallet.id, 1, checksumAddress.toLowerCase())?.amount, 500n)
-  assert.equal(getBalance(db, wallet.id, 1, checksumAddress.toUpperCase())?.amount, 500n)
-})
-
 test('Wallet Database - Token Case: getUnspentNotesByToken accepts mixed-case input', () => {
   resetTestCounters()
   const db = createTestWalletDB()
@@ -474,24 +381,4 @@ test('Wallet Database - Token Case: getUnspentNotesByToken accepts mixed-case in
   assert.equal(getUnspentNotesByToken(db, wallet.id, 1, checksumAddress).length, 2)
   assert.equal(getUnspentNotesByToken(db, wallet.id, 1, checksumAddress.toLowerCase()).length, 2)
   assert.equal(getUnspentNotesByToken(db, wallet.id, 1, checksumAddress.toUpperCase()).length, 2)
-})
-
-test('Wallet Database - Token Case: same address in different cases dedupes to one balance row', () => {
-  resetTestCounters()
-  const db = createTestWalletDB()
-  const wallet = createTestWallet()
-  const checksumAddress = '0x6B175474E89094C44Da98b954EedeAC495271d0F'
-
-  createWallet(db, wallet)
-  insertNotesBatch(db, [
-    createTestNote({ walletId: wallet.id, token: checksumAddress, amount: 100n }),
-    createTestNote({ walletId: wallet.id, token: checksumAddress.toLowerCase(), amount: 200n }),
-    createTestNote({ walletId: wallet.id, token: checksumAddress.toUpperCase(), amount: 300n }),
-  ])
-  recalculateAllBalances(db, wallet.id, 1)
-
-  const balances = getAllBalances(db, wallet.id, 1)
-  assert.equal(balances.length, 1)
-  assert.equal(balances[0]?.token, checksumAddress.toLowerCase())
-  assert.equal(balances[0]?.amount, 600n)
 })

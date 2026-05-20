@@ -1,3 +1,6 @@
+import assert from 'node:assert'
+import { test } from 'node:test'
+
 import type { DBNewRailgunTransaction } from '../../src'
 import {
   getRailgunTransactionByTxid,
@@ -9,7 +12,6 @@ import {
   setTxidSyncCursor,
   updateSyncState
 } from '../../src'
-import { test } from 'brittle'
 
 import { createTestChainDB } from '../utils'
 
@@ -52,7 +54,7 @@ function railgunTransaction (
   }
 }
 
-test('Railgun transactions: insert and query by txid and block range', (t) => {
+test('Railgun transactions: insert and query by txid and block range', () => {
   const db = createTestChainDB()
   const rows = [
     railgunTransaction(1, { blockNumber: 110n }),
@@ -72,20 +74,20 @@ test('Railgun transactions: insert and query by txid and block range', (t) => {
     }),
   ]
 
-  t.is(insertRailgunTransactions(db, rows), 2)
+  assert.equal(insertRailgunTransactions(db, rows), 2)
 
   const byTxid = getRailgunTransactionByTxid(db, rows[1]!.railgunTxid)
   const byBlock = getRailgunTransactionsByBlockRange(db, 100n, 130n)
 
-  t.alike.coercively(byTxid, rows[1])
-  t.is(byBlock.length, 2)
-  t.alike.coercively(
+  assert.deepStrictEqual(byTxid, rows[1])
+  assert.equal(byBlock.length, 2)
+  assert.deepStrictEqual(
     byBlock.find(row => Buffer.from(row.railgunTxid).equals(Buffer.from(rows[1]!.railgunTxid))),
     byTxid
   )
 })
 
-test('Railgun transactions: query by output tree range', (t) => {
+test('Railgun transactions: query by output tree range', () => {
   const db = createTestChainDB()
   const rows = [
     railgunTransaction(1, { utxoTreeOut: 0, utxoBatchStartPositionOut: 2 }),
@@ -96,34 +98,34 @@ test('Railgun transactions: query by output tree range', (t) => {
   insertRailgunTransactions(db, rows)
   const result = getRailgunTransactionsByTreeRange(db, 0, 1, 8)
 
-  t.is(result.length, 2)
-  t.alike.coercively(result.map(row => row.railgunTxid), [
+  assert.equal(result.length, 2)
+  assert.deepStrictEqual(result.map(row => row.railgunTxid), [
     rows[0]!.railgunTxid,
     rows[1]!.railgunTxid,
   ])
 })
 
-test('Railgun transactions: duplicate txid insert is ignored', (t) => {
+test('Railgun transactions: duplicate txid insert is ignored', () => {
   const db = createTestChainDB()
   const original = railgunTransaction(1, { blockNumber: 100n })
   const duplicate = railgunTransaction(1, { blockNumber: 999n, chainTxid: bytes32(99) })
 
-  t.is(insertRailgunTransactions(db, [original]), 1)
-  t.is(insertRailgunTransactions(db, [duplicate]), 0)
+  assert.equal(insertRailgunTransactions(db, [original]), 1)
+  assert.equal(insertRailgunTransactions(db, [duplicate]), 0)
 
   const stored = getRailgunTransactionByTxid(db, original.railgunTxid)
-  t.alike.coercively(stored, original)
+  assert.deepStrictEqual(stored, original)
 })
 
-test('Railgun transactions: txid cursor is independent from scan cursor', (t) => {
+test('Railgun transactions: txid cursor is independent from scan cursor', () => {
   const db = createTestChainDB()
 
-  t.is(getTxidSyncCursor(db, 11155111), 0n)
-  t.is(updateSyncState(db, 11155111, 200n), 1)
-  t.is(getSyncState(db, 11155111)?.lastBlockHeight, 200n)
-  t.is(getTxidSyncCursor(db, 11155111), 0n)
+  assert.equal(getTxidSyncCursor(db, 11155111), 0n)
+  assert.equal(updateSyncState(db, 11155111, 200n), 1)
+  assert.equal(getSyncState(db, 11155111)?.lastBlockHeight, 200n)
+  assert.equal(getTxidSyncCursor(db, 11155111), 0n)
 
-  t.is(setTxidSyncCursor(db, 11155111, 150n), 1)
-  t.is(getSyncState(db, 11155111)?.lastBlockHeight, 200n)
-  t.is(getTxidSyncCursor(db, 11155111), 150n)
+  assert.equal(setTxidSyncCursor(db, 11155111, 150n), 1)
+  assert.equal(getSyncState(db, 11155111)?.lastBlockHeight, 200n)
+  assert.equal(getTxidSyncCursor(db, 11155111), 150n)
 })

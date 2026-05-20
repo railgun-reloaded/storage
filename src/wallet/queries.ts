@@ -3,7 +3,6 @@ import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
 import type { WalletDB } from './db'
 import type { DBNewNote, DBNewTxHistory, DBNewWallet } from './schema'
 import {
-  balances,
   notes,
   scanState,
   txHistory,
@@ -101,7 +100,25 @@ function insertNotesBatch (db: WalletDB, noteList: DBNewNote[]): number {
     const result = db
       .insert(notes)
       .values(normalizedNotes)
-      .onConflictDoNothing()
+      .onConflictDoUpdate({
+        target: notes.commitment,
+        set: {
+          outputType: sql`coalesce(${notes.outputType}, excluded.output_type)`,
+          npk: sql`coalesce(${notes.npk}, excluded.npk)`,
+          random: sql`coalesce(${notes.random}, excluded.random)`,
+          blindedCommitment: sql`coalesce(${notes.blindedCommitment}, excluded.blinded_commitment)`,
+          creationRailgunTxid: sql`coalesce(${notes.creationRailgunTxid}, excluded.creation_railgun_txid)`,
+          creationTxid: sql`coalesce(${notes.creationTxid}, excluded.creation_txid)`,
+        },
+        where: sql`
+          (${notes.outputType} IS NULL AND excluded.output_type IS NOT NULL) OR
+          (${notes.npk} IS NULL AND excluded.npk IS NOT NULL) OR
+          (${notes.random} IS NULL AND excluded.random IS NOT NULL) OR
+          (${notes.blindedCommitment} IS NULL AND excluded.blinded_commitment IS NOT NULL) OR
+          (${notes.creationRailgunTxid} IS NULL AND excluded.creation_railgun_txid IS NOT NULL) OR
+          (${notes.creationTxid} IS NULL AND excluded.creation_txid IS NOT NULL)
+        `,
+      })
       .run()
 
     return result.changes
@@ -309,111 +326,6 @@ function updateNotePoiStatusBatch (
 }
 
 /**
- * Recalculate and persist the balance for a given wallet/chain/token tuple.
- * @param db - Wallet database instance.
- * @param walletId - Identifier of the wallet.
- * @param chainId - Chain identifier.
- * @param token - Token identifier.
- * @returns The recalculated amount as a bigint.
- */
-function recalculateBalance (
-  db: WalletDB,
-  walletId: string,
-  chainId: number,
-  token: string
-): bigint {
-  const normalizedTokenAddress = normalizeToken(token)
-  // Amount is internally stored as text (custom bigint type) and sqlite has limitation
-  // of 64 bit Integer sum, we cannot apply SUM operation here
-  return db.transaction(() => {
-    const result = db
-      .select({ amount: notes.amount })
-      .from(notes)
-      .where(
-        and(
-          eq(notes.walletId, walletId),
-          eq(notes.chainId, chainId),
-          eq(notes.token, normalizedTokenAddress),
-          eq(notes.spent, false)
-        )
-      )
-      .all()
-
-    const amount = result.reduce((sum, row) => sum + row.amount, 0n)
-    db.insert(balances)
-      .values({ walletId, chainId, token: normalizedTokenAddress, amount })
-      .onConflictDoUpdate({
-        target: [balances.walletId, balances.chainId, balances.token],
-        set: { amount, updatedAt: sql`(unixepoch())` },
-      })
-      .run()
-
-    return amount
-  })
-}
-
-/**
- * Retrieve a stored balance for a wallet/chain/token tuple.
- * @param db - Wallet database instance.
- * @param walletId - Identifier of the wallet.
- * @param chainId - Chain identifier.
- * @param token - Token identifier.
- * @returns The balance record or `undefined`.
- */
-function getBalance (db: WalletDB, walletId: string, chainId: number, token: string) {
-  return db
-    .select()
-    .from(balances)
-    .where(
-      and(
-        eq(balances.walletId, walletId),
-        eq(balances.chainId, chainId),
-        eq(balances.token, normalizeToken(token))
-      )
-    )
-    .get()
-}
-
-/**
- * Get all balance records for a wallet on a given chain.
- * @param db - Wallet database instance.
- * @param walletId - Identifier of the wallet.
- * @param chainId - Chain identifier.
- * @returns Array of balance records.
- */
-function getAllBalances (db: WalletDB, walletId: string, chainId: number) {
-  return db
-    .select()
-    .from(balances)
-    .where(and(eq(balances.walletId, walletId), eq(balances.chainId, chainId)))
-    .all()
-}
-
-/**
- * Recompute all token balances for a wallet on a given chain by iterating
- * its notes.
- * @param db - Wallet database instance.
- * @param walletId - Identifier of the wallet.
- * @param chainId - Chain identifier.
- */
-function recalculateAllBalances (
-  db: WalletDB,
-  walletId: string,
-  chainId: number
-): void {
-  const tokens = db
-    .select({ token: notes.token })
-    .from(notes)
-    .where(and(eq(notes.walletId, walletId), eq(notes.chainId, chainId)))
-    .groupBy(notes.token)
-    .all()
-
-  for (const { token } of tokens) {
-    recalculateBalance(db, walletId, chainId, token)
-  }
-}
-
-/**
  * Retrieve the scan state for a wallet on a particular chain.
  * @param db - Wallet database instance.
  * @param walletId - Identifier of the wallet.
@@ -533,12 +445,6 @@ function getWalletDBStats (db: WalletDB, walletId: string) {
     .where(and(eq(notes.walletId, walletId), eq(notes.spent, false)))
     .get()
 
-  const balancesCount = db
-    .select({ count: sql<number>`count(*)` })
-    .from(balances)
-    .where(eq(balances.walletId, walletId))
-    .get()
-
   const txHistoryCount = db
     .select({ count: sql<number>`count(*)` })
     .from(txHistory)
@@ -548,7 +454,6 @@ function getWalletDBStats (db: WalletDB, walletId: string) {
   return {
     notes: notesCount?.count ?? 0,
     unspentNotes: unspentNotesCount?.count ?? 0,
-    balances: balancesCount?.count ?? 0,
     transactions: txHistoryCount?.count ?? 0,
   }
 }
@@ -570,10 +475,6 @@ export {
   getNotesNeedingPoiRefresh,
   updateNotePoiStatus,
   updateNotePoiStatusBatch,
-  recalculateBalance,
-  getBalance,
-  getAllBalances,
-  recalculateAllBalances,
   getScanState,
   updateScanState,
   insertTxHistory,

@@ -1,7 +1,7 @@
 /**
  * Wallet database module - Private wallet-specific storage.
  *
- * Stores encrypted keys, decrypted notes, balances, scan state, and transaction history.
+ * Stores encrypted keys, decrypted notes, scan state, and transaction history.
  * One database instance per wallet.
  */
 

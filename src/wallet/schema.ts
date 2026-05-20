@@ -5,7 +5,7 @@
  * schema is consumed by Drizzle ORM to provide type-safe queries.
  */
 import { sql } from 'drizzle-orm'
-import { index, integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { index, integer, primaryKey, sqliteTable, text, unique } from 'drizzle-orm/sqlite-core'
 
 import { bigint, msgpackBlob, uint8Array } from '../types/custom-types'
 
@@ -40,7 +40,7 @@ const notes = sqliteTable(
       .notNull()
       .references(() => wallets.id, { onDelete: 'cascade' }),
     chainId: integer('chain_id').notNull(),
-    nullifier: uint8Array('nullifier').notNull().unique(),
+    nullifier: uint8Array('nullifier').notNull(),
     token: text('token').notNull(),
     amount: bigint('amount').notNull(),
     tokenType: integer('token_type').notNull().default(0),
@@ -74,28 +74,11 @@ const notes = sqliteTable(
       table.token
     ),
     nullifierIdx: index('notes_nullifier_idx').on(table.nullifier),
+    nullifierTreeUnique: unique('notes_nullifier_tree_unique').on(
+      table.nullifier,
+      table.treeNumber
+    ),
     treeLeafIdx: index('notes_tree_leaf_idx').on(table.treeNumber, table.treePosition),
-  })
-)
-
-/**
- * Tracks computed balances per wallet and token.
- */
-const balances = sqliteTable(
-  'balances',
-  {
-    walletId: text('wallet_id')
-      .notNull()
-      .references(() => wallets.id, { onDelete: 'cascade' }),
-    chainId: integer('chain_id').notNull(),
-    token: text('token').notNull(),
-    amount: bigint('amount').notNull(),
-    updatedAt: integer('updated_at', { mode: 'timestamp' })
-      .notNull()
-      .default(sql`(unixepoch())`),
-  },
-  (table) => ({
-    pk: primaryKey({ columns: [table.walletId, table.chainId, table.token] }),
   })
 )
 
@@ -116,6 +99,44 @@ const scanState = sqliteTable(
   },
   (table) => ({
     pk: primaryKey({ columns: [table.walletId, table.chainId] }),
+  })
+)
+
+/**
+ * Records sender-side decryptions of outgoing commitments. Mirrors engine's
+ * `<walletId>-spent:` LevelDB prefix. Independent of `notes`: a self-send
+ * change output may have rows in both tables for the same `commitment` bytes,
+ * a pure outgoing transfer to another wallet has only a `sentCommitments` row.
+ * Used as input to future POI proof generation.
+ */
+const sentCommitments = sqliteTable(
+  'sent_commitments',
+  {
+    commitment: uint8Array('commitment').primaryKey().notNull(),
+    walletId: text('wallet_id')
+      .notNull()
+      .references(() => wallets.id, { onDelete: 'cascade' }),
+    chainId: integer('chain_id').notNull(),
+    treeNumber: integer('tree_id').notNull(),
+    treePosition: integer('leaf_index').notNull(),
+    token: text('token').notNull(),
+    amount: bigint('amount').notNull(),
+    npk: uint8Array('npk').notNull(),
+    random: uint8Array('random'),
+    blindedCommitment: uint8Array('blinded_commitment'),
+    creationRailgunTxid: uint8Array('creation_railgun_txid'),
+    outputType: integer('output_type'),
+    recipientMpk: uint8Array('recipient_mpk').notNull(),
+    blockNumber: bigint('block_number').notNull(),
+    decryptedAt: integer('decrypted_at', { mode: 'timestamp' })
+      .notNull()
+      .default(sql`(unixepoch())`),
+  },
+  (table) => ({
+    walletChainIdx: index('sent_commitments_wallet_chain_idx').on(
+      table.walletId,
+      table.chainId
+    ),
   })
 )
 
@@ -151,18 +172,18 @@ const txHistory = sqliteTable(
 
 type DBWallet = typeof wallets.$inferSelect
 type DBNote = typeof notes.$inferSelect
-type DBBalance = typeof balances.$inferSelect
 type DBScanState = typeof scanState.$inferSelect
 type DBTxHistory = typeof txHistory.$inferSelect
+type DBSentCommitment = typeof sentCommitments.$inferSelect
 
 type DBNewWallet = typeof wallets.$inferInsert
 type DBNewNote = typeof notes.$inferInsert
-type DBNewBalance = typeof balances.$inferInsert
 type DBNewScanState = typeof scanState.$inferInsert
 type DBNewTxHistory = typeof txHistory.$inferInsert
+type DBNewSentCommitment = typeof sentCommitments.$inferInsert
 
 export type {
-  DBWallet, DBNote, DBBalance, DBScanState, DBTxHistory,
-  DBNewWallet, DBNewNote, DBNewBalance, DBNewScanState, DBNewTxHistory
+  DBWallet, DBNote, DBScanState, DBTxHistory, DBSentCommitment,
+  DBNewWallet, DBNewNote, DBNewScanState, DBNewTxHistory, DBNewSentCommitment
 }
-export { wallets, txHistory, scanState, balances, notes }
+export { wallets, txHistory, scanState, notes, sentCommitments }
