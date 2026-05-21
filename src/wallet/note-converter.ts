@@ -7,9 +7,9 @@ import type { DBNewNote } from './schema'
  * Consumers map their domain types into this shape before persisting.
  * Hex string fields (`commitment`, `nullifier`, `tokenSubID`) accept values
  * with or without a `0x` prefix; all other fields are passed through unchanged.
- * `tokenType` is the integer token-class enum (0 = ERC20, 1 = ERC721,
- * 2 = ERC1155). `tokenSubID` is a 32-byte sub-identifier; for ERC20 it is
- * the canonical 256-bit null (64 zero hex chars).
+ * `tokenType` is the integer token-class enum (0 = ERC20, 1 = ERC721).
+ * `tokenSubID` is a 32-byte sub-identifier; for ERC20 it is the canonical
+ * 256-bit null (64 zero hex chars).
  */
 type NoteInput = {
   commitment: string
@@ -29,8 +29,14 @@ type NoteInput = {
  * Hex strings are decoded to Uint8Array and `spent` is initialised to false.
  * @param input - The NoteInput object from the caller.
  * @returns A DBNewNote object suitable for the wallet database.
+ * @throws If `tokenSubID` does not decode to exactly 32 bytes.
  */
 function toDBNote (input: NoteInput): DBNewNote {
+  const tokenSubID = hexToBytes(input.tokenSubID)
+  if (tokenSubID.length !== 32) {
+    throw new Error(`tokenSubID must be exactly 32 bytes, got ${tokenSubID.length}`)
+  }
+
   return {
     commitment: hexToBytes(input.commitment),
     walletId: input.walletId,
@@ -38,7 +44,7 @@ function toDBNote (input: NoteInput): DBNewNote {
     token: input.token,
     amount: input.amount,
     tokenType: input.tokenType,
-    tokenSubID: hexToBytes(input.tokenSubID),
+    tokenSubID,
     spent: false,
     blockNumber: input.blockNumber,
     treeNumber: input.treeNumber,

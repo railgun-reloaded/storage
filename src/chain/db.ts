@@ -13,7 +13,6 @@ import * as schema from './schema'
  */
 interface ChainDBConfig {
   path: string;
-  enableWAL?: boolean;
   runMigrations?: boolean;
   migrationsFolder?: string;
   verbose?: boolean;
@@ -33,7 +32,6 @@ const DEFAULT_CHAIN_MIGRATION_FOLDER = './drizzle/chain'
 function createChainDB (config: ChainDBConfig): ChainDB {
   const {
     path: dbPath,
-    enableWAL,
     runMigrations,
     migrationsFolder,
     verbose,
@@ -49,7 +47,7 @@ function createChainDB (config: ChainDBConfig): ChainDB {
     verbose: verbose ? console.log : undefined,
   })
 
-  configurePragmas(sqlite, enableWAL || false)
+  configurePragmas(sqlite)
 
   const db = drizzle(sqlite, { schema }) as ChainDB
   db.$client = sqlite
@@ -83,14 +81,8 @@ function createChainDB (config: ChainDBConfig): ChainDB {
 /**
  * Configure common SQLite pragmas on the provided database instance.
  * @param sqlite - The database instance to configure.
- * @param enableWAL - Whether to enable Write-Ahead Logging for concurrent
- *   read/write access.
  */
-function configurePragmas (sqlite: Database.Database, enableWAL: boolean): void {
-  if (enableWAL) {
-    sqlite.pragma('journal_mode = WAL')
-  }
-
+function configurePragmas (sqlite: Database.Database): void {
   sqlite.pragma('synchronous = NORMAL')
   sqlite.pragma('cache_size = -10000')
   sqlite.pragma('temp_store = MEMORY')

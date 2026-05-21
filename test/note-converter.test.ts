@@ -222,37 +222,6 @@ test('insertNotesBatch: two notes on same token address with distinct tokenSubID
   assert.equal(found2!.tokenSubID[31], 0x02)
 })
 
-test('toDBNote + insertNotesBatch ERC1155 round-trip persists tokenType=2 and tokenSubID bytes', () => {
-  const db = createTestWalletDB()
-  const wallet = createTestWallet()
-  createWallet(db, wallet)
-
-  const subIdHex = `0x${'cd'.repeat(32)}`
-  const inputs: NoteInput[] = [
-    {
-      commitment: '0x3300000000000000000000000000000000000000000000000000000000000001',
-      walletId: wallet.id,
-      nullifier: '0x4400000000000000000000000000000000000000000000000000000000000001',
-      token: '0x2222222222222222222222222222222222222222',
-      amount: 5n,
-      tokenType: 2,
-      tokenSubID: subIdHex,
-      blockNumber: 7000n,
-      treeNumber: 5,
-      treePosition: 1,
-    },
-  ]
-
-  const dbNotes = toDBNotes(inputs)
-  assert.equal(insertNotesBatch(db, dbNotes), 1)
-
-  const found = getNoteByCommitment(db, dbNotes[0]!.commitment as Uint8Array)
-  assert.ok(found !== undefined)
-  assert.equal(found!.tokenType, 2)
-  assert.equal(found!.tokenSubID.length, 32)
-  assert.ok(found!.tokenSubID.every((byte) => byte === 0xcd))
-})
-
 test('toDBNotes + insertNotesBatch handles duplicates idempotently', () => {
   const db = createTestWalletDB()
   const wallet = createTestWallet()

@@ -12,7 +12,6 @@ import * as schema from './schema'
  */
 interface WalletDBConfig {
   path: string;
-  enableWAL?: boolean;
   runMigrations?: boolean;
   migrationsFolder?: string;
   verbose?: boolean;
@@ -36,7 +35,6 @@ const DEFAULT_WALLET_MIGRATION_FOLDER = './drizzle/wallet'
 function createWalletDB (config: WalletDBConfig): WalletDB {
   const {
     path: dbPath,
-    enableWAL,
     runMigrations = true,
     migrationsFolder,
     verbose = false,
@@ -51,7 +49,7 @@ function createWalletDB (config: WalletDBConfig): WalletDB {
     console.warn('SQLCipher encryption not yet implemented')
   }
 
-  configurePragmas(sqlite, enableWAL || false)
+  configurePragmas(sqlite)
 
   const db = drizzle(sqlite, { schema }) as WalletDB
   db.$client = sqlite
@@ -80,13 +78,8 @@ function createWalletDB (config: WalletDBConfig): WalletDB {
 /**
  * Apply recommended SQLite pragmas for wallet databases.
  * @param sqlite - The underlying SQLite database instance.
- * @param enableWAL - Whether to enable Write-Ahead Logging (WAL).
  */
-function configurePragmas (sqlite: Database.Database, enableWAL: boolean): void {
-  if (enableWAL) {
-    sqlite.pragma('journal_mode = WAL')
-  }
-
+function configurePragmas (sqlite: Database.Database): void {
   sqlite.pragma('synchronous = FULL')
   sqlite.pragma('cache_size = -5000')
   sqlite.pragma('temp_store = MEMORY')

@@ -32,7 +32,6 @@ function createTestChainDB (): ChainDB {
   // directly migration from existing file.
   const db = createChainDB({
     path: ':memory:',
-    enableWAL: false,
     runMigrations: true,
     verbose: false,
   })
@@ -56,7 +55,6 @@ function randomBytes (byteSize: number) : Uint8Array {
 function createTestWalletDB (): WalletDB {
   const db = createWalletDB({
     path: ':memory:',
-    enableWAL: false,
     runMigrations: true,
   })
 
