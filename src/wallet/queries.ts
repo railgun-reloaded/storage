@@ -1,4 +1,4 @@
-import { and, eq, inArray, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
 
 import type { WalletDB } from './db'
 import type { DBNewNote, DBNewTxHistory, DBNewWallet } from './schema'
@@ -9,6 +9,12 @@ import {
   txHistory,
   wallets
 } from './schema'
+
+type NotePoiStatusUpdate = {
+  commitment: Uint8Array
+  blindedCommitment: Uint8Array
+  poisPerList: Record<string, string> | null
+}
 
 /**
  * Canonical form for ERC-20 token addresses stored in or queried against the
@@ -103,29 +109,38 @@ function insertNotesBatch (db: WalletDB, noteList: DBNewNote[]): number {
 }
 
 /**
- * Retrieve all unspent notes for a given wallet.
+ * Retrieve all unspent notes for a wallet/chain pair.
  * @param db - Wallet database instance.
  * @param walletId - Identifier of the wallet.
- * @returns - All the unspent notes for given walletID
+ * @param chainId - Chain identifier.
+ * @returns - All the unspent notes for given walletID on the given chain.
  */
-function getUnspentNotes (db: WalletDB, walletId: string) {
+function getUnspentNotes (db: WalletDB, walletId: string, chainId: number) {
   return db
     .select()
     .from(notes)
-    .where(and(eq(notes.walletId, walletId), eq(notes.spent, false)))
+    .where(
+      and(
+        eq(notes.walletId, walletId),
+        eq(notes.chainId, chainId),
+        eq(notes.spent, false)
+      )
+    )
     .all()
 }
 
 /**
- * Retrieve unspent notes filtered by token for a wallet.
+ * Retrieve unspent notes filtered by token for a wallet/chain pair.
  * @param db - Wallet database instance.
  * @param walletId - Identifier of the wallet.
+ * @param chainId - Chain identifier.
  * @param token - Token identifier to filter by.
- * @returns - All the unspent notes for given walletID based on token filter
+ * @returns - Unspent notes for the wallet/chain/token.
  */
 function getUnspentNotesByToken (
   db: WalletDB,
   walletId: string,
+  chainId: number,
   token: string
 ) {
   return db
@@ -134,6 +149,7 @@ function getUnspentNotesByToken (
     .where(
       and(
         eq(notes.walletId, walletId),
+        eq(notes.chainId, chainId),
         eq(notes.token, normalizeToken(token)),
         eq(notes.spent, false)
       )
@@ -204,27 +220,106 @@ function markNotesSpentBatch (
 }
 
 /**
- * Return all notes belonging to a wallet.
+ * Return all notes belonging to a wallet on a given chain.
  * @param db - Wallet database instance.
  * @param walletId - Identifier of the wallet.
+ * @param chainId - Chain identifier.
  * @returns Array of note records.
  */
-function getAllNotes (db: WalletDB, walletId: string) {
-  return db.select().from(notes).where(eq(notes.walletId, walletId)).all()
+function getAllNotes (db: WalletDB, walletId: string, chainId: number) {
+  return db
+    .select()
+    .from(notes)
+    .where(and(eq(notes.walletId, walletId), eq(notes.chainId, chainId)))
+    .all()
 }
 
 /**
- * Recalculate and persist the balance for a given wallet/token pair.
- * The function computes the sum of all unspent notes and upserts the
- * resulting amount into the `balances` table.
+ * Return received notes whose PPOI status has not been persisted yet.
  * @param db - Wallet database instance.
  * @param walletId - Identifier of the wallet.
+ * @param chainId - Chain identifier.
+ * @returns Notes with `poisPerList IS NULL`.
+ */
+function getNotesNeedingPoiRefresh (
+  db: WalletDB,
+  walletId: string,
+  chainId: number
+) {
+  return db
+    .select()
+    .from(notes)
+    .where(
+      and(
+        eq(notes.walletId, walletId),
+        eq(notes.chainId, chainId),
+        isNull(notes.poisPerList)
+      )
+    )
+    .all()
+}
+
+/**
+ * Persist a note's blinded commitment and PPOI status together.
+ * @param db - Wallet database instance.
+ * @param commitment - Note commitment primary key.
+ * @param blindedCommitment - Derived PPOI lookup key.
+ * @param poisPerList - PPOI statuses by list key, or null to leave status pending.
+ * @returns Number of rows updated.
+ */
+function updateNotePoiStatus (
+  db: WalletDB,
+  commitment: Uint8Array,
+  blindedCommitment: Uint8Array,
+  poisPerList: Record<string, string> | null
+): number {
+  const result = db
+    .update(notes)
+    .set({ blindedCommitment, poisPerList })
+    .where(eq(notes.commitment, commitment))
+    .run()
+
+  return result.changes
+}
+
+/**
+ * Persist PPOI status updates for multiple notes in one transaction.
+ * @param db - Wallet database instance.
+ * @param updates - Note PPOI updates.
+ * @returns Number of rows updated.
+ */
+function updateNotePoiStatusBatch (
+  db: WalletDB,
+  updates: NotePoiStatusUpdate[]
+): number {
+  if (updates.length === 0) return 0
+
+  return db.transaction(() => {
+    let updated = 0
+    for (const update of updates) {
+      updated += updateNotePoiStatus(
+        db,
+        update.commitment,
+        update.blindedCommitment,
+        update.poisPerList
+      )
+    }
+    return updated
+  })
+}
+
+/**
+ * Recalculate and persist the balance for a given wallet/chain/token tuple.
+ * @param db - Wallet database instance.
+ * @param walletId - Identifier of the wallet.
+ * @param chainId - Chain identifier.
  * @param token - Token identifier.
  * @returns The recalculated amount as a bigint.
  */
 function recalculateBalance (
   db: WalletDB,
   walletId: string,
+  chainId: number,
   token: string
 ): bigint {
   const normalizedTokenAddress = normalizeToken(token)
@@ -237,6 +332,7 @@ function recalculateBalance (
       .where(
         and(
           eq(notes.walletId, walletId),
+          eq(notes.chainId, chainId),
           eq(notes.token, normalizedTokenAddress),
           eq(notes.spent, false)
         )
@@ -245,9 +341,9 @@ function recalculateBalance (
 
     const amount = result.reduce((sum, row) => sum + row.amount, 0n)
     db.insert(balances)
-      .values({ walletId, token: normalizedTokenAddress, amount })
+      .values({ walletId, chainId, token: normalizedTokenAddress, amount })
       .onConflictDoUpdate({
-        target: [balances.walletId, balances.token],
+        target: [balances.walletId, balances.chainId, balances.token],
         set: { amount, updatedAt: sql`(unixepoch())` },
       })
       .run()
@@ -257,45 +353,63 @@ function recalculateBalance (
 }
 
 /**
- * Retrieve a stored balance for a wallet/token pair.
+ * Retrieve a stored balance for a wallet/chain/token tuple.
  * @param db - Wallet database instance.
  * @param walletId - Identifier of the wallet.
+ * @param chainId - Chain identifier.
  * @param token - Token identifier.
  * @returns The balance record or `undefined`.
  */
-function getBalance (db: WalletDB, walletId: string, token: string) {
+function getBalance (db: WalletDB, walletId: string, chainId: number, token: string) {
   return db
     .select()
     .from(balances)
-    .where(and(eq(balances.walletId, walletId), eq(balances.token, normalizeToken(token))))
+    .where(
+      and(
+        eq(balances.walletId, walletId),
+        eq(balances.chainId, chainId),
+        eq(balances.token, normalizeToken(token))
+      )
+    )
     .get()
 }
 
 /**
- * Get all balance records for a wallet.
+ * Get all balance records for a wallet on a given chain.
  * @param db - Wallet database instance.
  * @param walletId - Identifier of the wallet.
+ * @param chainId - Chain identifier.
  * @returns Array of balance records.
  */
-function getAllBalances (db: WalletDB, walletId: string) {
-  return db.select().from(balances).where(eq(balances.walletId, walletId)).all()
+function getAllBalances (db: WalletDB, walletId: string, chainId: number) {
+  return db
+    .select()
+    .from(balances)
+    .where(and(eq(balances.walletId, walletId), eq(balances.chainId, chainId)))
+    .all()
 }
 
 /**
- * Recompute all token balances for a wallet by iterating over its notes.
+ * Recompute all token balances for a wallet on a given chain by iterating
+ * its notes.
  * @param db - Wallet database instance.
  * @param walletId - Identifier of the wallet.
+ * @param chainId - Chain identifier.
  */
-function recalculateAllBalances (db: WalletDB, walletId: string): void {
+function recalculateAllBalances (
+  db: WalletDB,
+  walletId: string,
+  chainId: number
+): void {
   const tokens = db
     .select({ token: notes.token })
     .from(notes)
-    .where(eq(notes.walletId, walletId))
+    .where(and(eq(notes.walletId, walletId), eq(notes.chainId, chainId)))
     .groupBy(notes.token)
     .all()
 
   for (const { token } of tokens) {
-    recalculateBalance(db, walletId, token)
+    recalculateBalance(db, walletId, chainId, token)
   }
 }
 
@@ -368,17 +482,23 @@ function insertTxHistoryBatch (db: WalletDB, txs: DBNewTxHistory[]): number {
 }
 
 /**
- * Retrieve recent transaction history for a wallet.
+ * Retrieve recent transaction history for a wallet on a given chain.
  * @param db - Wallet database instance.
  * @param walletId - Identifier of the wallet.
+ * @param chainId - Chain identifier.
  * @param limit - Maximum number of records to return (default 100).
- * @returns - Transaction history for given walletId with given limit.
+ * @returns - Transaction history rows ordered by block desc.
  */
-function getTxHistory (db: WalletDB, walletId: string, limit: number = 100) {
+function getTxHistory (
+  db: WalletDB,
+  walletId: string,
+  chainId: number,
+  limit: number = 100
+) {
   return db
     .select()
     .from(txHistory)
-    .where(eq(txHistory.walletId, walletId))
+    .where(and(eq(txHistory.walletId, walletId), eq(txHistory.chainId, chainId)))
     .orderBy(sql`${txHistory.blockNumber} DESC`)
     .limit(limit)
     .all()
@@ -447,6 +567,9 @@ export {
   markNoteSpent,
   markNotesSpentBatch,
   getAllNotes,
+  getNotesNeedingPoiRefresh,
+  updateNotePoiStatus,
+  updateNotePoiStatusBatch,
   recalculateBalance,
   getBalance,
   getAllBalances,
@@ -459,3 +582,4 @@ export {
   getTxById,
   getWalletDBStats
 }
+export type { NotePoiStatusUpdate }

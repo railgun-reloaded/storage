@@ -81,7 +81,53 @@ const syncState = sqliteTable(
   {
     chainID: integer('chain_id').primaryKey().notNull(),
     lastBlockHeight: bigint('last_block_height').notNull(),
+    lastTxidSyncBlockHeight: bigint('last_txid_sync_block_height')
+      .notNull()
+      .default(sql.raw(`'${'0'.repeat(64)}'`)),
   }
+)
+
+const railgunTransactions = sqliteTable(
+  'railgun_transactions',
+  {
+    railgunTxid: uint8Array('railgun_txid').primaryKey().notNull(),
+    txidVersion: integer('txid_version').notNull(),
+    chainTxid: uint8Array('chain_txid').notNull(),
+    graphID: uint8Array('graph_id'),
+    blockNumber: bigint('block_number').notNull(),
+    timestamp: bigint('timestamp').notNull(),
+    nullifiers: msgpackBlob('nullifiers').notNull(),
+    commitments: msgpackBlob('commitments').notNull(),
+    boundParamsHash: uint8Array('bound_params_hash').notNull(),
+    hasUnshield: integer('has_unshield', { mode: 'boolean' }).notNull(),
+    unshield: msgpackBlob('unshield'),
+    utxoTreeIn: integer('utxo_tree_in').notNull(),
+    utxoTreeOut: integer('utxo_tree_out').notNull(),
+    utxoBatchStartPositionOut: integer('utxo_batch_start_position_out').notNull(),
+    verificationHash: uint8Array('verification_hash')
+  },
+  (table) => ({
+    blockTxIndex: index('railgun_transactions_block_tx_index').on(
+      table.blockNumber,
+      table.chainTxid
+    ),
+    treeRangeIndex: index('railgun_transactions_tree_range_index').on(
+      table.utxoTreeOut,
+      table.utxoBatchStartPositionOut
+    ),
+    railgunTxidSizeCheck: check(
+      'railgun_transactions_txid_size_check',
+      sql`length(${table.railgunTxid}) = 32`
+    ),
+    chainTxidSizeCheck: check(
+      'railgun_transactions_chain_txid_size_check',
+      sql`length(${table.chainTxid}) = 32`
+    ),
+    boundParamsHashSizeCheck: check(
+      'railgun_transactions_bound_params_hash_size_check',
+      sql`length(${table.boundParamsHash}) = 32`
+    )
+  })
 )
 
 /**
@@ -118,6 +164,8 @@ type DBUnshield = typeof unshields.$inferSelect
 type DBNewUnshield = typeof unshields.$inferInsert
 type DBCommitment = typeof commitments.$inferSelect
 type DBNewCommitment = typeof commitments.$inferInsert
+type DBRailgunTransaction = typeof railgunTransactions.$inferSelect
+type DBNewRailgunTransaction = typeof railgunTransactions.$inferInsert
 
 export type {
   DBNullifier,
@@ -128,6 +176,8 @@ export type {
   DBNewUnshield,
   DBCommitment,
   DBNewCommitment,
+  DBRailgunTransaction,
+  DBNewRailgunTransaction,
 }
 
-export { commitments, nullifiers, merkleTrees, unshields, syncState, bigint }
+export { commitments, nullifiers, merkleTrees, unshields, syncState, railgunTransactions, bigint }

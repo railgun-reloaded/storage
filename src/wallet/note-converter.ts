@@ -14,6 +14,7 @@ import type { DBNewNote } from './schema'
 type NoteInput = {
   commitment: string
   walletId: string
+  chainId: number
   nullifier: string
   token: string
   amount: bigint
@@ -22,6 +23,13 @@ type NoteInput = {
   blockNumber: bigint
   treeNumber: number
   treePosition: number
+  commitmentType: number
+  outputType?: number
+  npk?: Uint8Array
+  random?: Uint8Array
+  blindedCommitment?: Uint8Array
+  creationRailgunTxid?: Uint8Array
+  creationTxid?: Uint8Array
 }
 
 /**
@@ -40,6 +48,7 @@ function toDBNote (input: NoteInput): DBNewNote {
   return {
     commitment: hexToBytes(input.commitment),
     walletId: input.walletId,
+    chainId: input.chainId,
     nullifier: hexToBytes(input.nullifier),
     token: input.token,
     amount: input.amount,
@@ -49,6 +58,13 @@ function toDBNote (input: NoteInput): DBNewNote {
     blockNumber: input.blockNumber,
     treeNumber: input.treeNumber,
     treePosition: input.treePosition,
+    commitmentType: input.commitmentType,
+    outputType: input.outputType ?? null,
+    npk: input.npk ?? null,
+    random: input.random ?? null,
+    blindedCommitment: input.blindedCommitment ?? null,
+    creationRailgunTxid: input.creationRailgunTxid ?? null,
+    creationTxid: input.creationTxid ?? null,
   }
 }
 

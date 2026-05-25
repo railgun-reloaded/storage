@@ -7,7 +7,7 @@
 import { sql } from 'drizzle-orm'
 import { index, integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
-import { bigint, uint8Array } from '../types/custom-types'
+import { bigint, msgpackBlob, uint8Array } from '../types/custom-types'
 
 /**
  * Canonical 256-bit null sub-ID for ERC20 notes, expressed as a SQLite blob
@@ -39,6 +39,7 @@ const notes = sqliteTable(
     walletId: text('wallet_id')
       .notNull()
       .references(() => wallets.id, { onDelete: 'cascade' }),
+    chainId: integer('chain_id').notNull(),
     nullifier: uint8Array('nullifier').notNull().unique(),
     token: text('token').notNull(),
     amount: bigint('amount').notNull(),
@@ -49,13 +50,30 @@ const notes = sqliteTable(
     blockNumber: bigint('block_number').notNull(),
     treeNumber: integer('tree_id').notNull(),
     treePosition: integer('leaf_index').notNull(),
+    commitmentType: integer('commitment_type').notNull(),
+    outputType: integer('output_type'),
+    npk: uint8Array('npk'),
+    random: uint8Array('random'),
+    blindedCommitment: uint8Array('blinded_commitment'),
+    creationRailgunTxid: uint8Array('creation_railgun_txid'),
+    creationTxid: uint8Array('creation_txid'),
+    poisPerList: msgpackBlob('pois_per_list'),
     decryptedAt: integer('decrypted_at', { mode: 'timestamp' })
       .notNull()
       .default(sql`(unixepoch())`),
   },
   (table) => ({
-    walletSpentIdx: index('notes_wallet_spent_idx').on(table.walletId, table.spent),
-    walletTokenIdx: index('notes_wallet_token_idx').on(table.walletId, table.token),
+    walletChainSpentIdx: index('notes_wallet_chain_spent_idx').on(
+      table.walletId,
+      table.chainId,
+      table.spent
+    ),
+    walletChainTokenIdx: index('notes_wallet_chain_token_idx').on(
+      table.walletId,
+      table.chainId,
+      table.token
+    ),
+    nullifierIdx: index('notes_nullifier_idx').on(table.nullifier),
     treeLeafIdx: index('notes_tree_leaf_idx').on(table.treeNumber, table.treePosition),
   })
 )
@@ -69,6 +87,7 @@ const balances = sqliteTable(
     walletId: text('wallet_id')
       .notNull()
       .references(() => wallets.id, { onDelete: 'cascade' }),
+    chainId: integer('chain_id').notNull(),
     token: text('token').notNull(),
     amount: bigint('amount').notNull(),
     updatedAt: integer('updated_at', { mode: 'timestamp' })
@@ -76,7 +95,7 @@ const balances = sqliteTable(
       .default(sql`(unixepoch())`),
   },
   (table) => ({
-    pk: primaryKey({ columns: [table.walletId, table.token] }),
+    pk: primaryKey({ columns: [table.walletId, table.chainId, table.token] }),
   })
 )
 
@@ -110,6 +129,7 @@ const txHistory = sqliteTable(
     walletId: text('wallet_id')
       .notNull()
       .references(() => wallets.id, { onDelete: 'cascade' }),
+    chainId: integer('chain_id').notNull(),
     type: text('type', { enum: ['shield', 'transfer', 'unshield'] }).notNull(),
     txid: text('txid').notNull(),
     blockNumber: bigint('block_number').notNull(),
@@ -120,7 +140,11 @@ const txHistory = sqliteTable(
       .default(sql`(unixepoch())`),
   },
   (table) => ({
-    walletBlockIdx: index('tx_history_wallet_block_idx').on(table.walletId, table.blockNumber),
+    walletChainBlockIdx: index('tx_history_wallet_chain_block_idx').on(
+      table.walletId,
+      table.chainId,
+      table.blockNumber
+    ),
     txidIdx: index('tx_history_txid_idx').on(table.txid),
   })
 )

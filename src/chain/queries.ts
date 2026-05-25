@@ -1,12 +1,13 @@
-import { and, asc, eq, getTableColumns, gte, lte, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, getTableColumns, gte, lte, sql } from 'drizzle-orm'
 import type { SQLiteTransaction } from 'drizzle-orm/sqlite-core'
 
 import type { ChainDB } from './db'
-import type { DBNewCommitment, DBNewMerkleTree, DBNewNullifier, DBNewUnshield } from './schema'
+import type { DBNewCommitment, DBNewMerkleTree, DBNewNullifier, DBNewRailgunTransaction, DBNewUnshield } from './schema'
 import {
   commitments,
   merkleTrees,
   nullifiers,
+  railgunTransactions,
   syncState,
   unshields,
 } from './schema'
@@ -29,11 +30,18 @@ function upsertRow<T extends Record<string, unknown>> (
 ) {
   const columns = getTableColumns(table)
 
+  const firstValue = Array.isArray(values) ? values[0] : values
+  if (firstValue === undefined) {
+    throw new Error('Cannot upsert empty values')
+  }
+
   const set = Object.fromEntries(
-    Object.entries(columns).map(([key, col]) => [
-      key,
-      sql.raw(`excluded."${(col as any).name}"`),
-    ])
+    Object.entries(columns)
+      .filter(([key]) => Object.hasOwn(firstValue, key))
+      .map(([key, col]) => [
+        key,
+        sql.raw(`excluded."${(col as any).name}"`),
+      ])
   )
 
   return db.insert(table)
@@ -293,6 +301,131 @@ function updateSyncState (
 }
 
 /**
+ * Read the independent Railgun TXID sync cursor for a chain.
+ * @param db - Chain database instance.
+ * @param chainID - Identifier of the chain.
+ * @returns Last block height whose Railgun TXID rows were persisted.
+ */
+function getTxidSyncCursor (db: ChainDB, chainID: number): bigint {
+  return getSyncState(db, chainID)?.lastTxidSyncBlockHeight ?? 0n
+}
+
+/**
+ * Update the independent Railgun TXID sync cursor for a chain without
+ * changing the regular commitment sync cursor.
+ * @param db - Chain database or transaction context.
+ * @param chainID - Identifier of the chain.
+ * @param blockHeight - Last PPOI-complete block persisted for TXID state.
+ * @returns Number of rows affected.
+ */
+function setTxidSyncCursor (
+  db: DBContext,
+  chainID: number,
+  blockHeight: bigint
+) {
+  const existing = db
+    .select()
+    .from(syncState)
+    .where(eq(syncState.chainID, chainID))
+    .get()
+  const { changes } = upsertRow(db, syncState, syncState.chainID, {
+    chainID,
+    lastBlockHeight: existing?.lastBlockHeight ?? 0n,
+    lastTxidSyncBlockHeight: blockHeight
+  })
+  return changes
+}
+
+/**
+ * Insert Railgun transactions, ignoring already-seen Railgun TXIDs.
+ * @param db - Chain database or transaction context.
+ * @param rows - Railgun transaction rows to insert.
+ * @returns Number of inserted rows.
+ */
+function insertRailgunTransactions (
+  db: DBContext,
+  rows: DBNewRailgunTransaction[]
+): number {
+  if (rows.length === 0) return 0
+  const { changes } = db
+    .insert(railgunTransactions)
+    .values(rows)
+    .onConflictDoNothing({ target: railgunTransactions.railgunTxid })
+    .run()
+  return changes
+}
+
+/**
+ * Fetch one Railgun transaction by its canonical Railgun TXID.
+ * @param db - Chain database instance.
+ * @param railgunTxid - Canonical Railgun transaction ID.
+ * @returns Matching transaction row, when present.
+ */
+function getRailgunTransactionByTxid (
+  db: ChainDB,
+  railgunTxid: Uint8Array
+) {
+  return db
+    .select()
+    .from(railgunTransactions)
+    .where(eq(railgunTransactions.railgunTxid, railgunTxid))
+    .get()
+}
+
+/**
+ * Fetch Railgun transactions by block range.
+ * @param db - Chain database instance.
+ * @param fromBlock - Start block height, inclusive.
+ * @param toBlock - End block height, inclusive.
+ * @returns Transactions ordered by block number.
+ */
+function getRailgunTransactionsByBlockRange (
+  db: ChainDB,
+  fromBlock: bigint,
+  toBlock: bigint
+) {
+  return db
+    .select()
+    .from(railgunTransactions)
+    .where(
+      and(
+        gte(railgunTransactions.blockNumber, fromBlock),
+        lte(railgunTransactions.blockNumber, toBlock)
+      )
+    )
+    .orderBy(asc(railgunTransactions.blockNumber))
+    .all()
+}
+
+/**
+ * Fetch Railgun transactions whose output batch starts in a tree range.
+ * @param db - Chain database instance.
+ * @param utxoTreeOut - Output UTXO tree number.
+ * @param startPosition - Inclusive output start position.
+ * @param endPosition - Inclusive output end position.
+ * @returns Transactions ordered by output batch start position.
+ */
+function getRailgunTransactionsByTreeRange (
+  db: ChainDB,
+  utxoTreeOut: number,
+  startPosition: number,
+  endPosition: number
+) {
+  return db
+    .select()
+    .from(railgunTransactions)
+    .where(
+      and(
+        eq(railgunTransactions.utxoTreeOut, utxoTreeOut),
+        gte(railgunTransactions.utxoBatchStartPositionOut, startPosition),
+        lte(railgunTransactions.utxoBatchStartPositionOut, endPosition)
+      )
+    )
+    .orderBy(asc(railgunTransactions.utxoBatchStartPositionOut))
+    .all()
+}
+
+/**
  * Insert or update a batch of unshield events.
  * @param db - Chain database or transaction context.
  * @param unshieldsBatch - Array of unshield records to upsert.
@@ -330,6 +463,47 @@ function getUnshieldsByBlockRange (
 }
 
 /**
+ * Find the Railgun transaction whose output batch contains a given commitment
+ * at (treeNumber, treePosition). Returns the row whose
+ * `utxoBatchStartPositionOut <= treePosition < utxoBatchStartPositionOut + commitments.length`,
+ * or `undefined` if no Railgun transaction in storage covers that slot
+ * (e.g. RPC-only data sources that don't populate `railgun_transactions`).
+ *
+ * Walks candidates ordered by descending start position so we hit the
+ * matching row on the first iteration in the typical case.
+ * @param db - Chain database instance.
+ * @param treeNumber - Output UTXO tree.
+ * @param treePosition - Position of the commitment within that tree.
+ * @returns The row that produced the commitment, or `undefined`.
+ */
+function findRailgunTransactionForLeaf (
+  db: ChainDB,
+  treeNumber: number,
+  treePosition: number
+) {
+  const candidates = db
+    .select()
+    .from(railgunTransactions)
+    .where(
+      and(
+        eq(railgunTransactions.utxoTreeOut, treeNumber),
+        lte(railgunTransactions.utxoBatchStartPositionOut, treePosition)
+      )
+    )
+    .orderBy(desc(railgunTransactions.utxoBatchStartPositionOut))
+    .all()
+
+  for (const row of candidates) {
+    const batchCommitments = row.commitments as unknown as Uint8Array[]
+    const start = row.utxoBatchStartPositionOut
+    if (treePosition < start + batchCommitments.length) {
+      return row
+    }
+  }
+  return undefined
+}
+
+/**
  * Execute a series of database operations inside a transaction.
  * The provided callback receives a transaction object that should be used for
  * any write operations, ensuring atomicity.
@@ -357,6 +531,13 @@ export {
   setMerkleTree,
   getSyncState,
   updateSyncState,
+  getTxidSyncCursor,
+  setTxidSyncCursor,
+  insertRailgunTransactions,
+  getRailgunTransactionByTxid,
+  getRailgunTransactionsByBlockRange,
+  getRailgunTransactionsByTreeRange,
+  findRailgunTransactionForLeaf,
   insertUnshieldBatch,
   getUnshieldsByBlockRange,
   runDBTransaction

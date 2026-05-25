@@ -16,6 +16,7 @@ const ERC20_NULL_SUB_ID = `0x${'00'.repeat(32)}`
 const BASE_INPUT: NoteInput = {
   commitment: '0xaabbccdd00000000000000000000000000000000000000000000000000000000',
   walletId: 'wallet-1',
+  chainId: 1,
   nullifier: '0x1122334400000000000000000000000000000000000000000000000000000000',
   token: '0x0000000000000000000000000000000000000000',
   amount: 500n,
@@ -24,6 +25,7 @@ const BASE_INPUT: NoteInput = {
   blockNumber: 1000n,
   treeNumber: 0,
   treePosition: 7,
+  commitmentType: 0,
 }
 
 test('toDBNote: converts hex commitment to Uint8Array', () => {
@@ -104,6 +106,7 @@ test('toDBNotes + insertNotesBatch round-trip persists correctly', () => {
     {
       commitment: '0xaa00000000000000000000000000000000000000000000000000000000000001',
       walletId: wallet.id,
+      chainId: 1,
       nullifier: '0xbb00000000000000000000000000000000000000000000000000000000000001',
       token: '0x0000000000000000000000000000000000000000',
       amount: 100n,
@@ -112,10 +115,12 @@ test('toDBNotes + insertNotesBatch round-trip persists correctly', () => {
       blockNumber: 2000n,
       treeNumber: 1,
       treePosition: 3,
+      commitmentType: 0,
     },
     {
       commitment: '0xaa00000000000000000000000000000000000000000000000000000000000002',
       walletId: wallet.id,
+      chainId: 1,
       nullifier: '0xbb00000000000000000000000000000000000000000000000000000000000002',
       token: '0x0000000000000000000000000000000000000000',
       amount: 200n,
@@ -124,6 +129,7 @@ test('toDBNotes + insertNotesBatch round-trip persists correctly', () => {
       blockNumber: 2001n,
       treeNumber: 1,
       treePosition: 4,
+      commitmentType: 0,
     },
   ]
 
@@ -231,6 +237,7 @@ test('toDBNotes + insertNotesBatch handles duplicates idempotently', () => {
     {
       commitment: '0xcc00000000000000000000000000000000000000000000000000000000000001',
       walletId: wallet.id,
+      chainId: 1,
       nullifier: '0xdd00000000000000000000000000000000000000000000000000000000000001',
       token: '0x0000000000000000000000000000000000000000',
       amount: 300n,
@@ -239,6 +246,7 @@ test('toDBNotes + insertNotesBatch handles duplicates idempotently', () => {
       blockNumber: 3000n,
       treeNumber: 2,
       treePosition: 5,
+      commitmentType: 0,
     },
   ]
 
