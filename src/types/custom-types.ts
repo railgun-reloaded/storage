@@ -93,6 +93,30 @@ const uint8Array = customType<{ data: Uint8Array; driverData: Buffer }>({
   },
 })
 
+/**
+ * MessagePack decodes nested binary values as Buffer in Node. Convert those
+ * back to plain Uint8Array so msgpackBlob columns match uint8Array columns.
+ * @param value - Decoded MessagePack value.
+ * @returns The decoded value with binary leaves normalized.
+ */
+function normalizeMsgpackBinary (value: unknown): unknown {
+  if (value instanceof Uint8Array) {
+    return Uint8Array.from(value)
+  }
+  if (Array.isArray(value)) {
+    return value.map(normalizeMsgpackBinary)
+  }
+  if (typeof value === 'object' && value !== null) {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, entry]) => [
+        key,
+        normalizeMsgpackBinary(entry)
+      ])
+    )
+  }
+  return value
+}
+
 const msgpackBlob = customType<{ data: any; driverData: Buffer }>({
 /**
  * Defines the underlying database column type as a BLOB.
@@ -116,7 +140,7 @@ const msgpackBlob = customType<{ data: any; driverData: Buffer }>({
    * @returns - The deserialized JavaScript object or value.
    */
   fromDriver (value: Buffer) {
-    return decode(value, { extensionCodec })
+    return normalizeMsgpackBinary(decode(value, { extensionCodec }))
   }
 })
 

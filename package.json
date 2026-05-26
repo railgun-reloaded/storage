@@ -11,7 +11,7 @@
     "lint": "eslint",
     "lint:fix": "eslint --fix",
     "pretest": "npm run build",
-    "test": "node --test --enable-source-maps test/**/*.test.js",
+    "test": "node --test --enable-source-maps \"test/**/*.test.js\"",
     "db:generate:chain": "drizzle-kit generate --config=config/drizzle.chain.config.ts",
     "db:generate:wallet": "drizzle-kit generate --config=config/drizzle.wallet.config.ts",
     "db:generate": "npm run db:generate:chain && npm run db:generate:wallet",

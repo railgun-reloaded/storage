@@ -12,7 +12,6 @@ import {
   setTxidSyncCursor,
   updateSyncState
 } from '../../src'
-
 import { createTestChainDB } from '../utils'
 
 /**

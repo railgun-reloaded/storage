@@ -158,6 +158,7 @@ test('toDBNotes + insertNotesBatch ERC721 round-trip persists tokenType=1 and to
     {
       commitment: '0xee00000000000000000000000000000000000000000000000000000000000001',
       walletId: wallet.id,
+      chainId: 1,
       nullifier: '0xff00000000000000000000000000000000000000000000000000000000000001',
       token: '0x1111111111111111111111111111111111111111',
       amount: 1n,
@@ -166,6 +167,7 @@ test('toDBNotes + insertNotesBatch ERC721 round-trip persists tokenType=1 and to
       blockNumber: 5000n,
       treeNumber: 3,
       treePosition: 9,
+      commitmentType: 0,
     },
   ]
 
@@ -193,6 +195,7 @@ test('insertNotesBatch: two notes on same token address with distinct tokenSubID
     {
       commitment: '0x1100000000000000000000000000000000000000000000000000000000000001',
       walletId: wallet.id,
+      chainId: 1,
       nullifier: '0x2200000000000000000000000000000000000000000000000000000000000001',
       token: sharedToken,
       amount: 1n,
@@ -201,10 +204,12 @@ test('insertNotesBatch: two notes on same token address with distinct tokenSubID
       blockNumber: 6000n,
       treeNumber: 4,
       treePosition: 1,
+      commitmentType: 0,
     },
     {
       commitment: '0x1100000000000000000000000000000000000000000000000000000000000002',
       walletId: wallet.id,
+      chainId: 1,
       nullifier: '0x2200000000000000000000000000000000000000000000000000000000000002',
       token: sharedToken,
       amount: 1n,
@@ -213,6 +218,7 @@ test('insertNotesBatch: two notes on same token address with distinct tokenSubID
       blockNumber: 6001n,
       treeNumber: 4,
       treePosition: 2,
+      commitmentType: 0,
     },
   ]
 
