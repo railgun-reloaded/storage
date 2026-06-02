@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
+import { and, eq, isNull, sql } from 'drizzle-orm'
 
 import type { WalletDB } from './db'
 import type { DBNewNote, DBNewTxHistory, DBNewWallet } from './schema'
@@ -9,8 +9,19 @@ import {
   wallets
 } from './schema'
 
-type NotePoiStatusUpdate = {
+type NoteIdentity = {
+  walletId: string
+  chainId: number
   commitment: Uint8Array
+}
+
+type NoteNullifierIdentity = {
+  chainId: number
+  nullifier: Uint8Array
+  treeNumber: number
+}
+
+type NotePoiStatusUpdate = NoteIdentity & {
   blindedCommitment: Uint8Array
   poisPerList: Record<string, string> | null
 }
@@ -25,6 +36,36 @@ type NotePoiStatusUpdate = {
  */
 function normalizeToken (token: string): string {
   return token.toLowerCase()
+}
+
+/**
+ * Build the `WHERE` clause that uniquely identifies a note by its composite
+ * primary key. Notes are scoped per wallet and chain, so a commitment alone is
+ * not unique across chains.
+ * @param identity - Wallet, chain, and commitment identifying the note.
+ * @returns Drizzle condition matching the single note row.
+ */
+function noteIdentityWhere (identity: NoteIdentity) {
+  return and(
+    eq(notes.walletId, identity.walletId),
+    eq(notes.chainId, identity.chainId),
+    eq(notes.commitment, identity.commitment)
+  )
+}
+
+/**
+ * Build the `WHERE` clause that identifies a note by its chain-scoped nullifier
+ * and tree position. The same nullifier/tree pair can recur across chains, so
+ * `chainId` is required to disambiguate.
+ * @param identity - Chain, nullifier, and tree number identifying the note.
+ * @returns Drizzle condition matching the single note row.
+ */
+function noteNullifierIdentityWhere (identity: NoteNullifierIdentity) {
+  return and(
+    eq(notes.chainId, identity.chainId),
+    eq(notes.nullifier, identity.nullifier),
+    eq(notes.treeNumber, identity.treeNumber)
+  )
 }
 
 /**
@@ -78,7 +119,9 @@ function deleteWallet (db: WalletDB, walletId: string): number {
 function insertNote (db: WalletDB, note: DBNewNote): void {
   db.insert(notes)
     .values({ ...note, token: normalizeToken(note.token) })
-    .onConflictDoNothing()
+    .onConflictDoNothing({
+      target: [notes.walletId, notes.chainId, notes.commitment],
+    })
     .run()
 }
 
@@ -101,7 +144,7 @@ function insertNotesBatch (db: WalletDB, noteList: DBNewNote[]): number {
       .insert(notes)
       .values(normalizedNotes)
       .onConflictDoUpdate({
-        target: notes.commitment,
+        target: [notes.walletId, notes.chainId, notes.commitment],
         set: {
           outputType: sql`coalesce(${notes.outputType}, excluded.output_type)`,
           npk: sql`coalesce(${notes.npk}, excluded.npk)`,
@@ -175,64 +218,65 @@ function getUnspentNotesByToken (
 }
 
 /**
- * Fetch a note by its commitment value.
+ * Fetch a note by its wallet/chain/commitment identity.
  * @param db - Wallet database instance.
- * @param commitment - Commitment string to search for.
+ * @param identity - Wallet, chain, and commitment to search for.
  * @returns The note record or `undefined`.
  */
-function getNoteByCommitment (db: WalletDB, commitment: Uint8Array) {
-  return db.select().from(notes).where(eq(notes.commitment, commitment)).get()
+function getNoteByCommitment (db: WalletDB, identity: NoteIdentity) {
+  return db.select().from(notes).where(noteIdentityWhere(identity)).get()
 }
 
 /**
- * Fetch a note by its nullifier value.
+ * Fetch a note by its chain/nullifier/tree identity.
  * @param db - Wallet database instance.
- * @param nullifier - Nullifier string to search for.
+ * @param identity - Chain, nullifier, and tree number to search for.
  * @returns The note record or `undefined`.
  */
-function getNoteByNullifier (db: WalletDB, nullifier: Uint8Array) {
-  return db.select().from(notes).where(eq(notes.nullifier, nullifier)).get()
+function getNoteByNullifier (db: WalletDB, identity: NoteNullifierIdentity) {
+  return db.select().from(notes).where(noteNullifierIdentityWhere(identity)).get()
 }
 
 /**
  * Mark a note as spent and record the transaction ID that spent it.
  * @param db - Wallet database instance.
- * @param commitment - Commitment of the note to update.
+ * @param identity - Wallet, chain, and commitment of the note to update.
  * @param spentTxid - Transaction ID that spent the note.
+ * @returns Number of rows updated.
  */
 function markNoteSpent (
   db: WalletDB,
-  commitment: Uint8Array,
+  identity: NoteIdentity,
   spentTxid: Uint8Array
-): void {
-  db.update(notes)
+): number {
+  const result = db.update(notes)
     .set({ spent: true, spentTxid })
-    .where(eq(notes.commitment, commitment))
+    .where(noteIdentityWhere(identity))
     .run()
+
+  return result.changes
 }
 
 /**
  * Mark multiple notes as spent in a single transaction.
  * @param db - Wallet database instance.
- * @param commitments - Array of note commitments to update.
+ * @param identities - Array of wallet/chain/commitment note identities to update.
  * @param spentTxid - Transaction ID that spent the notes.
  * @returns Number of rows updated.
  */
 function markNotesSpentBatch (
   db: WalletDB,
-  commitments: Uint8Array[],
+  identities: NoteIdentity[],
   spentTxid: Uint8Array
 ): number {
-  if (commitments.length === 0) return 0
+  if (identities.length === 0) return 0
 
   return db.transaction(() => {
-    const result = db
-      .update(notes)
-      .set({ spent: true, spentTxid })
-      .where(inArray(notes.commitment, commitments))
-      .run()
-
-    return result.changes
+    let updated = 0
+    for (const identity of identities) {
+      updated += markNoteSpent(db, identity, spentTxid)
+    }
+    return updated
   })
 }
 
@@ -279,21 +323,21 @@ function getNotesNeedingPoiRefresh (
 /**
  * Persist a note's blinded commitment and PPOI status together.
  * @param db - Wallet database instance.
- * @param commitment - Note commitment primary key.
+ * @param identity - Wallet, chain, and commitment of the note to update.
  * @param blindedCommitment - Derived PPOI lookup key.
  * @param poisPerList - PPOI statuses by list key, or null to leave status pending.
  * @returns Number of rows updated.
  */
 function updateNotePoiStatus (
   db: WalletDB,
-  commitment: Uint8Array,
+  identity: NoteIdentity,
   blindedCommitment: Uint8Array,
   poisPerList: Record<string, string> | null
 ): number {
   const result = db
     .update(notes)
     .set({ blindedCommitment, poisPerList })
-    .where(eq(notes.commitment, commitment))
+    .where(noteIdentityWhere(identity))
     .run()
 
   return result.changes
@@ -316,7 +360,7 @@ function updateNotePoiStatusBatch (
     for (const update of updates) {
       updated += updateNotePoiStatus(
         db,
-        update.commitment,
+        update,
         update.blindedCommitment,
         update.poisPerList
       )
@@ -483,4 +527,4 @@ export {
   getTxById,
   getWalletDBStats
 }
-export type { NotePoiStatusUpdate }
+export type { NoteIdentity, NoteNullifierIdentity, NotePoiStatusUpdate }

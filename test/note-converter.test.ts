@@ -3,15 +3,31 @@ import { test } from 'node:test'
 
 import type { NoteInput } from '../src/wallet/note-converter'
 import { toDBNote, toDBNotes } from '../src/wallet/note-converter'
+import type { NoteIdentity } from '../src/wallet/queries'
 import {
   createWallet,
   getNoteByCommitment,
   insertNotesBatch,
 } from '../src/wallet/queries'
+import type { DBNewNote } from '../src/wallet/schema'
 
 import { createTestWallet, createTestWalletDB } from './utils'
 
 const ERC20_NULL_SUB_ID = `0x${'00'.repeat(32)}`
+
+/**
+ * Build a note identity (wallet, chain, commitment) from a DB note row for use
+ * in commitment-scoped lookups.
+ * @param note - Note row to derive the identity from.
+ * @returns The note's composite identity.
+ */
+function noteIdentity (note: DBNewNote): NoteIdentity {
+  return {
+    walletId: note.walletId,
+    chainId: note.chainId,
+    commitment: note.commitment,
+  }
+}
 
 const BASE_INPUT: NoteInput = {
   commitment: '0xaabbccdd00000000000000000000000000000000000000000000000000000000',
@@ -137,7 +153,7 @@ test('toDBNotes + insertNotesBatch round-trip persists correctly', () => {
   const count = insertNotesBatch(db, dbNotes)
   assert.equal(count, 2)
 
-  const found = getNoteByCommitment(db, dbNotes[0]!.commitment as Uint8Array)
+  const found = getNoteByCommitment(db, noteIdentity(dbNotes[0]!))
   assert.ok(found !== undefined)
   assert.equal(found!.amount, 100n)
   assert.equal(found!.spent, false)
@@ -175,7 +191,7 @@ test('toDBNotes + insertNotesBatch ERC721 round-trip persists tokenType=1 and to
   const count = insertNotesBatch(db, dbNotes)
   assert.equal(count, 1)
 
-  const found = getNoteByCommitment(db, dbNotes[0]!.commitment as Uint8Array)
+  const found = getNoteByCommitment(db, noteIdentity(dbNotes[0]!))
   assert.ok(found !== undefined)
   assert.equal(found!.tokenType, 1)
   assert.equal(found!.tokenSubID.length, 32)
@@ -226,8 +242,8 @@ test('insertNotesBatch: two notes on same token address with distinct tokenSubID
   const count = insertNotesBatch(db, dbNotes)
   assert.equal(count, 2)
 
-  const found1 = getNoteByCommitment(db, dbNotes[0]!.commitment as Uint8Array)
-  const found2 = getNoteByCommitment(db, dbNotes[1]!.commitment as Uint8Array)
+  const found1 = getNoteByCommitment(db, noteIdentity(dbNotes[0]!))
+  const found2 = getNoteByCommitment(db, noteIdentity(dbNotes[1]!))
   assert.ok(found1 !== undefined)
   assert.ok(found2 !== undefined)
   assert.equal(found1!.tokenSubID[31], 0x01)

@@ -35,7 +35,7 @@ const wallets = sqliteTable('wallets', {
 const notes = sqliteTable(
   'notes',
   {
-    commitment: uint8Array('commitment').primaryKey().notNull(),
+    commitment: uint8Array('commitment').notNull(),
     walletId: text('wallet_id')
       .notNull()
       .references(() => wallets.id, { onDelete: 'cascade' }),
@@ -73,12 +73,14 @@ const notes = sqliteTable(
       table.chainId,
       table.token
     ),
-    nullifierIdx: index('notes_nullifier_idx').on(table.nullifier),
-    nullifierTreeUnique: unique('notes_nullifier_tree_unique').on(
+    notePk: primaryKey({ columns: [table.walletId, table.chainId, table.commitment] }),
+    nullifierIdx: index('notes_chain_nullifier_idx').on(table.chainId, table.nullifier),
+    nullifierTreeUnique: unique('notes_chain_nullifier_tree_unique').on(
+      table.chainId,
       table.nullifier,
       table.treeNumber
     ),
-    treeLeafIdx: index('notes_tree_leaf_idx').on(table.treeNumber, table.treePosition),
+    treeLeafIdx: index('notes_chain_tree_leaf_idx').on(table.chainId, table.treeNumber, table.treePosition),
   })
 )
 
@@ -112,7 +114,7 @@ const scanState = sqliteTable(
 const sentCommitments = sqliteTable(
   'sent_commitments',
   {
-    commitment: uint8Array('commitment').primaryKey().notNull(),
+    commitment: uint8Array('commitment').notNull(),
     walletId: text('wallet_id')
       .notNull()
       .references(() => wallets.id, { onDelete: 'cascade' }),
@@ -133,6 +135,7 @@ const sentCommitments = sqliteTable(
       .default(sql`(unixepoch())`),
   },
   (table) => ({
+    pk: primaryKey({ columns: [table.walletId, table.chainId, table.commitment] }),
     walletChainIdx: index('sent_commitments_wallet_chain_idx').on(
       table.walletId,
       table.chainId

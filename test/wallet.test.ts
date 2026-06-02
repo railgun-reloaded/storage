@@ -1,6 +1,7 @@
 import assert from 'node:assert'
 import { test } from 'node:test'
 
+import type { DBNewNote, DBNewSentCommitment, NoteIdentity } from '../src/wallet/index'
 import {
   createWallet,
   deleteWallet,
@@ -17,6 +18,8 @@ import {
   listWallets,
   markNoteSpent,
   markNotesSpentBatch,
+  sentCommitments,
+  updateNotePoiStatus,
   updateScanState,
 } from '../src/wallet/index'
 
@@ -27,6 +30,43 @@ import {
   hexToBytes,
   resetTestCounters,
 } from './utils'
+
+/**
+ * Build a note identity (wallet, chain, commitment) from a DB note row for use
+ * in commitment-scoped lookups.
+ * @param note - Note row to derive the identity from.
+ * @returns The note's composite identity.
+ */
+function noteIdentity (note: DBNewNote): NoteIdentity {
+  return {
+    walletId: note.walletId,
+    chainId: note.chainId,
+    commitment: note.commitment,
+  }
+}
+
+/**
+ * Build a sent-commitment fixture with sensible defaults, overridable per field.
+ * @param overrides - Partial fields to override on the default fixture.
+ * @returns A complete sent-commitment row for insertion.
+ */
+function sentCommitmentFixture (
+  overrides: Partial<DBNewSentCommitment> = {}
+): DBNewSentCommitment {
+  return {
+    commitment: hexToBytes(`0x${'ab'.repeat(32)}`),
+    walletId: 'wallet-1',
+    chainId: 1,
+    treeNumber: 0,
+    treePosition: 1,
+    token: '0x0000000000000000000000000000000000000000',
+    amount: 1n,
+    npk: hexToBytes(`0x${'cd'.repeat(32)}`),
+    recipientMpk: hexToBytes(`0x${'ef'.repeat(32)}`),
+    blockNumber: 1n,
+    ...overrides,
+  }
+}
 
 test('Wallet Database - Wallets: create and retrieve', () => {
   resetTestCounters()
@@ -78,11 +118,81 @@ test('Wallet Database - Notes: insert and retrieve', () => {
   createWallet(db, wallet)
   insertNote(db, note)
 
-  const retrieved = getNoteByCommitment(db, note.commitment as Uint8Array)
+  const retrieved = getNoteByCommitment(db, noteIdentity(note))
 
   assert.ok(retrieved)
   assert.deepEqual(retrieved?.commitment, note.commitment)
   assert.equal(retrieved?.amount, note.amount)
+})
+
+test('Wallet Database - Notes: commitment identity is wallet and chain scoped', () => {
+  resetTestCounters()
+  const db = createTestWalletDB()
+  const wallet1 = createTestWallet()
+  const wallet2 = createTestWallet()
+  const sharedCommitment = hexToBytes(`0x${'aa'.repeat(32)}`)
+  const spentTxid = hexToBytes(`0x${'fe'.repeat(32)}`)
+  const blindedCommitment = hexToBytes(`0x${'be'.repeat(32)}`)
+  const poisPerList = { list: 'valid' }
+  const wallet1Chain1 = createTestNote({
+    walletId: wallet1.id,
+    chainId: 1,
+    commitment: sharedCommitment,
+    amount: 1n,
+  })
+  const wallet2Chain1 = createTestNote({
+    walletId: wallet2.id,
+    chainId: 1,
+    commitment: sharedCommitment,
+    amount: 2n,
+  })
+  const wallet1Chain137 = createTestNote({
+    walletId: wallet1.id,
+    chainId: 137,
+    commitment: sharedCommitment,
+    amount: 3n,
+  })
+
+  createWallet(db, wallet1)
+  createWallet(db, wallet2)
+  assert.equal(insertNotesBatch(db, [wallet1Chain1, wallet2Chain1, wallet1Chain137]), 3)
+
+  assert.equal(getNoteByCommitment(db, noteIdentity(wallet1Chain1))?.amount, 1n)
+  assert.equal(getNoteByCommitment(db, noteIdentity(wallet2Chain1))?.amount, 2n)
+  assert.equal(getNoteByCommitment(db, noteIdentity(wallet1Chain137))?.amount, 3n)
+
+  assert.equal(markNoteSpent(db, noteIdentity(wallet1Chain1), spentTxid), 1)
+  assert.equal(updateNotePoiStatus(db, noteIdentity(wallet1Chain137), blindedCommitment, poisPerList), 1)
+
+  assert.equal(getNoteByCommitment(db, noteIdentity(wallet1Chain1))?.spent, true)
+  assert.equal(getNoteByCommitment(db, noteIdentity(wallet2Chain1))?.spent, false)
+  assert.equal(getNoteByCommitment(db, noteIdentity(wallet1Chain137))?.spent, false)
+  assert.deepEqual(getNoteByCommitment(db, noteIdentity(wallet1Chain137))?.blindedCommitment, blindedCommitment)
+  assert.equal(getNoteByCommitment(db, noteIdentity(wallet1Chain1))?.blindedCommitment, null)
+})
+
+test('Wallet Database - Sent commitments: commitment identity is wallet and chain scoped', () => {
+  resetTestCounters()
+  const db = createTestWalletDB()
+  const wallet = createTestWallet()
+  const sharedCommitment = hexToBytes(`0x${'ac'.repeat(32)}`)
+
+  createWallet(db, wallet)
+
+  const first = sentCommitmentFixture({
+    walletId: wallet.id,
+    chainId: 1,
+    commitment: sharedCommitment,
+  })
+  const second = sentCommitmentFixture({
+    walletId: wallet.id,
+    chainId: 137,
+    commitment: sharedCommitment,
+    treePosition: 2,
+  })
+
+  const result = db.insert(sentCommitments).values([first, second]).run()
+  assert.equal(result.changes, 2)
 })
 
 test('Wallet Database - Notes: batch insert', () => {
@@ -152,9 +262,9 @@ test('Wallet Database - Notes: mark note as spent', () => {
   createWallet(db, wallet)
   insertNote(db, note)
 
-  markNoteSpent(db, note.commitment as Uint8Array, spentTxid as Uint8Array)
+  markNoteSpent(db, noteIdentity(note), spentTxid as Uint8Array)
 
-  const retrieved = getNoteByCommitment(db, note.commitment as Uint8Array)
+  const retrieved = getNoteByCommitment(db, noteIdentity(note))
 
   assert.ok(retrieved)
   assert.equal(retrieved?.spent, true)
@@ -169,13 +279,13 @@ test('Wallet Database - Notes: batch mark notes as spent', () => {
     createTestNote({ walletId: wallet.id, spent: false }),
     createTestNote({ walletId: wallet.id, spent: false }),
   ]
-  const commitments = notes.map((n) => n.commitment as Uint8Array)
+  const identities = notes.map(noteIdentity)
   const spentTxid = hexToBytes('0xff32')
 
   createWallet(db, wallet)
   insertNotesBatch(db, notes)
 
-  const count = markNotesSpentBatch(db, commitments, spentTxid)
+  const count = markNotesSpentBatch(db, identities, spentTxid)
 
   assert.equal(count, 2)
   const unspent = getUnspentNotes(db, wallet.id, 1)
@@ -330,7 +440,7 @@ test('Wallet Database - Cascade Delete: delete wallet data', () => {
   deleteWallet(db, wallet.id)
 
   assert.equal(getWallet(db, wallet.id), undefined)
-  assert.equal(getNoteByCommitment(db, note.commitment as Uint8Array), undefined)
+  assert.equal(getNoteByCommitment(db, noteIdentity(note)), undefined)
 })
 
 test('Wallet Database - Token Case: insertNote stores token lowercase', () => {
@@ -343,7 +453,7 @@ test('Wallet Database - Token Case: insertNote stores token lowercase', () => {
   createWallet(db, wallet)
   insertNote(db, note)
 
-  const retrieved = getNoteByCommitment(db, note.commitment as Uint8Array)
+  const retrieved = getNoteByCommitment(db, noteIdentity(note))
   assert.equal(retrieved?.token, checksumAddress.toLowerCase())
 })
 

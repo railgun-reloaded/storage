@@ -228,19 +228,22 @@ insertNote(db: WalletDB, note: NewNote): void
 insertNotesBatch(db: WalletDB, notes: NewNote[]): number
 
 // Get unspent notes
-getUnspentNotes(db: WalletDB, walletId: string): Note[]
+getUnspentNotes(db: WalletDB, walletId: string, chainId: number): Note[]
 
 // Get unspent notes by token
-getUnspentNotesByToken(db: WalletDB, walletId: string, token: string): Note[]
+getUnspentNotesByToken(db: WalletDB, walletId: string, chainId: number, token: string): Note[]
 
-// Get note by commitment
-getNoteByCommitment(db: WalletDB, commitment: string): Note | undefined
+// Get note by scoped wallet/chain/commitment identity
+getNoteByCommitment(db: WalletDB, identity: NoteIdentity): Note | undefined
+
+// Get note by scoped chain/nullifier/tree identity
+getNoteByNullifier(db: WalletDB, identity: NoteNullifierIdentity): Note | undefined
 
 // Mark spent
-markNoteSpent(db: WalletDB, commitment: string, spentTxid: string): void
+markNoteSpent(db: WalletDB, identity: NoteIdentity, spentTxid: Uint8Array): number
 
 // Batch mark spent
-markNotesSpentBatch(db: WalletDB, commitments: string[], spentTxid: string): number
+markNotesSpentBatch(db: WalletDB, identities: NoteIdentity[], spentTxid: Uint8Array): number
 ```
 
 #### Balance Operations
