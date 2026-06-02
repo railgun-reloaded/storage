@@ -10,7 +10,7 @@ import * as schema from './schema'
 /**
  * Configuration options for creating a wallet database.
  */
-interface WalletDBConfig {
+type WalletDBConfig = {
   path: string;
   runMigrations?: boolean;
   migrationsFolder?: string;
@@ -21,7 +21,7 @@ interface WalletDBConfig {
 /**
  * Extended drizzle database type specialized to the wallet schema.
  */
-interface WalletDB extends BetterSQLite3Database<typeof schema> {
+type WalletDB = BetterSQLite3Database<typeof schema> & {
   $client: Database.Database;
 }
 

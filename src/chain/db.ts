@@ -11,14 +11,14 @@ import * as schema from './schema'
 /**
  * Configuration options for creating a chain database instance.
  */
-interface ChainDBConfig {
+type ChainDBConfig = {
   path: string;
   runMigrations?: boolean;
   migrationsFolder?: string;
   verbose?: boolean;
 }
 
-interface ChainDB extends BetterSQLite3Database<typeof schema> {
+type ChainDB = BetterSQLite3Database<typeof schema> & {
   $client: Database.Database;
 }
 
