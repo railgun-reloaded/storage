@@ -1,5 +1,8 @@
 {
   "extends": "@railgun-reloaded/tsconfig/tsconfig.json",
+  "compilerOptions": {
+    "declaration": true
+  },
   "exclude": [
     "node_modules",
     "dist",
