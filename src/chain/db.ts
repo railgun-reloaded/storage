@@ -24,12 +24,12 @@ type ChainDB = BetterSQLite3Database<typeof schema> & {
 
 const DEFAULT_CHAIN_MIGRATION_FOLDER = './drizzle/chain'
 /**
- * Create a Drizzle SQLite database for storing chain events.
- * SQLite methods are synchronous, so callers do not need to await operations.
+ * Create a Drizzle SQLite database for storing chain events, applying
+ * pending migrations when needed.
  * @param config - ChainDB creation configuration options.
  * @returns A configured ChainDB instance.
  */
-function createChainDB (config: ChainDBConfig): ChainDB {
+async function createChainDB (config: ChainDBConfig): Promise<ChainDB> {
   const {
     path: dbPath,
     runMigrations,
@@ -67,7 +67,7 @@ function createChainDB (config: ChainDBConfig): ChainDB {
     try {
       migrate(db, { migrationsFolder: migrationFilePath })
       if (verbose) {
-        console.log(`Chain database migrations applied: ${path}`)
+        console.log(`Chain database migrations applied: ${dbPath}`)
       }
     } catch (error) {
       console.error('Failed to apply chain database migrations:', error)
@@ -94,7 +94,7 @@ function configurePragmas (sqlite: Database.Database): void {
  * Close the chain database if it is not currently in a transaction.
  * @param db - The ChainDB instance to close.
  */
-function closeChainDB (db: ChainDB): void {
+async function closeChainDB (db: ChainDB): Promise<void> {
   const sqlite = db.$client
   if (sqlite && !sqlite.inTransaction) {
     sqlite.close()
@@ -108,7 +108,7 @@ function closeChainDB (db: ChainDB): void {
  *   defragments it, and reclaims unused space. This operation can be slow on
  *   large databases.
  */
-function optimizeChainDB (db: ChainDB, vacuum: boolean = false): void {
+async function optimizeChainDB (db: ChainDB, vacuum: boolean = false): Promise<void> {
   const sqlite = db.$client
 
   sqlite.pragma('analysis_limit = 1000')
@@ -124,7 +124,7 @@ function optimizeChainDB (db: ChainDB, vacuum: boolean = false): void {
  * @param db - The ChainDB instance to inspect.
  * @returns The total size used by the database in bytes.
  */
-function getChainDBSize (db: ChainDB): number {
+async function getChainDBSize (db: ChainDB): Promise<number> {
   const sqlite = db.$client
   const result = sqlite.pragma('page_count', { simple: true }) as number
   const pageSize = sqlite.pragma('page_size', { simple: true }) as number
@@ -136,9 +136,9 @@ function getChainDBSize (db: ChainDB): number {
  * @param db - The ChainDB instance to back up.
  * @param backupPath - Filesystem path where the backup should be written.
  */
-function backupChainDB (db: ChainDB, backupPath: string): void {
+async function backupChainDB (db: ChainDB, backupPath: string): Promise<void> {
   const sqlite = db.$client
-  sqlite.backup(backupPath)
+  await sqlite.backup(backupPath)
 }
 
 export { createChainDB, closeChainDB, optimizeChainDB, getChainDBSize, backupChainDB }

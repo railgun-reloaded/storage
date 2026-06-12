@@ -68,66 +68,66 @@ function sentCommitmentFixture (
   }
 }
 
-test('Wallet Database - Wallets: create and retrieve', () => {
+test('Wallet Database - Wallets: create and retrieve', async () => {
   resetTestCounters()
-  const db = createTestWalletDB()
+  const db = await createTestWalletDB()
   const wallet = createTestWallet()
 
-  createWallet(db, wallet)
+  await createWallet(db, wallet)
 
-  const retrieved = getWallet(db, wallet.id)
+  const retrieved = await getWallet(db, wallet.id)
 
   assert.ok(retrieved)
   assert.equal(retrieved?.id, wallet.id)
   assert.equal(retrieved?.name, wallet.name)
 })
 
-test('Wallet Database - Wallets: list all', () => {
+test('Wallet Database - Wallets: list all', async () => {
   resetTestCounters()
-  const db = createTestWalletDB()
+  const db = await createTestWalletDB()
   const wallet1 = createTestWallet()
   const wallet2 = createTestWallet()
 
-  createWallet(db, wallet1)
-  createWallet(db, wallet2)
+  await createWallet(db, wallet1)
+  await createWallet(db, wallet2)
 
-  const wallets = listWallets(db)
+  const wallets = await listWallets(db)
 
   assert.equal(wallets.length, 2)
 })
 
-test('Wallet Database - Wallets: delete wallet', () => {
+test('Wallet Database - Wallets: delete wallet', async () => {
   resetTestCounters()
-  const db = createTestWalletDB()
+  const db = await createTestWalletDB()
   const wallet = createTestWallet()
 
-  createWallet(db, wallet)
+  await createWallet(db, wallet)
 
-  const deleted = deleteWallet(db, wallet.id)
+  const deleted = await deleteWallet(db, wallet.id)
 
   assert.equal(deleted, 1)
-  assert.equal(getWallet(db, wallet.id), undefined)
+  assert.equal(await getWallet(db, wallet.id), undefined)
 })
 
-test('Wallet Database - Notes: insert and retrieve', () => {
+test('Wallet Database - Notes: insert and retrieve', async () => {
   resetTestCounters()
-  const db = createTestWalletDB()
+  const db = await createTestWalletDB()
   const wallet = createTestWallet()
   const note = createTestNote({ walletId: wallet.id })
 
-  createWallet(db, wallet)
-  insertNote(db, note)
+  await createWallet(db, wallet)
+  await insertNote(db, note)
 
-  const retrieved = getNoteByCommitment(db, noteIdentity(note))
+  const retrieved = await getNoteByCommitment(db, noteIdentity(note))
 
   assert.ok(retrieved)
   assert.deepEqual(retrieved?.commitment, note.commitment)
   assert.equal(retrieved?.amount, note.amount)
 })
 
-test('Wallet Database - Notes: commitment identity is wallet and chain scoped', () => {
+test('Wallet Database - Notes: commitment identity is wallet and chain scoped', async () => {
   resetTestCounters()
-  const db = createTestWalletDB()
+  const db = await createTestWalletDB()
   const wallet1 = createTestWallet()
   const wallet2 = createTestWallet()
   const sharedCommitment = hexToBytes(`0x${'aa'.repeat(32)}`)
@@ -153,31 +153,31 @@ test('Wallet Database - Notes: commitment identity is wallet and chain scoped', 
     amount: 3n,
   })
 
-  createWallet(db, wallet1)
-  createWallet(db, wallet2)
-  assert.equal(insertNotesBatch(db, [wallet1Chain1, wallet2Chain1, wallet1Chain137]), 3)
+  await createWallet(db, wallet1)
+  await createWallet(db, wallet2)
+  assert.equal(await insertNotesBatch(db, [wallet1Chain1, wallet2Chain1, wallet1Chain137]), 3)
 
-  assert.equal(getNoteByCommitment(db, noteIdentity(wallet1Chain1))?.amount, 1n)
-  assert.equal(getNoteByCommitment(db, noteIdentity(wallet2Chain1))?.amount, 2n)
-  assert.equal(getNoteByCommitment(db, noteIdentity(wallet1Chain137))?.amount, 3n)
+  assert.equal((await getNoteByCommitment(db, noteIdentity(wallet1Chain1)))?.amount, 1n)
+  assert.equal((await getNoteByCommitment(db, noteIdentity(wallet2Chain1)))?.amount, 2n)
+  assert.equal((await getNoteByCommitment(db, noteIdentity(wallet1Chain137)))?.amount, 3n)
 
-  assert.equal(markNoteSpent(db, noteIdentity(wallet1Chain1), spentTxid), 1)
-  assert.equal(updateNotePoiStatus(db, noteIdentity(wallet1Chain137), blindedCommitment, poisPerList), 1)
+  assert.equal(await markNoteSpent(db, noteIdentity(wallet1Chain1), spentTxid), 1)
+  assert.equal(await updateNotePoiStatus(db, noteIdentity(wallet1Chain137), blindedCommitment, poisPerList), 1)
 
-  assert.equal(getNoteByCommitment(db, noteIdentity(wallet1Chain1))?.spent, true)
-  assert.equal(getNoteByCommitment(db, noteIdentity(wallet2Chain1))?.spent, false)
-  assert.equal(getNoteByCommitment(db, noteIdentity(wallet1Chain137))?.spent, false)
-  assert.deepEqual(getNoteByCommitment(db, noteIdentity(wallet1Chain137))?.blindedCommitment, blindedCommitment)
-  assert.equal(getNoteByCommitment(db, noteIdentity(wallet1Chain1))?.blindedCommitment, null)
+  assert.equal((await getNoteByCommitment(db, noteIdentity(wallet1Chain1)))?.spent, true)
+  assert.equal((await getNoteByCommitment(db, noteIdentity(wallet2Chain1)))?.spent, false)
+  assert.equal((await getNoteByCommitment(db, noteIdentity(wallet1Chain137)))?.spent, false)
+  assert.deepEqual((await getNoteByCommitment(db, noteIdentity(wallet1Chain137)))?.blindedCommitment, blindedCommitment)
+  assert.equal((await getNoteByCommitment(db, noteIdentity(wallet1Chain1)))?.blindedCommitment, null)
 })
 
-test('Wallet Database - Sent commitments: commitment identity is wallet and chain scoped', () => {
+test('Wallet Database - Sent commitments: commitment identity is wallet and chain scoped', async () => {
   resetTestCounters()
-  const db = createTestWalletDB()
+  const db = await createTestWalletDB()
   const wallet = createTestWallet()
   const sharedCommitment = hexToBytes(`0x${'ac'.repeat(32)}`)
 
-  createWallet(db, wallet)
+  await createWallet(db, wallet)
 
   const first = sentCommitmentFixture({
     walletId: wallet.id,
@@ -195,9 +195,9 @@ test('Wallet Database - Sent commitments: commitment identity is wallet and chai
   assert.equal(result.changes, 2)
 })
 
-test('Wallet Database - Notes: batch insert', () => {
+test('Wallet Database - Notes: batch insert', async () => {
   resetTestCounters()
-  const db = createTestWalletDB()
+  const db = await createTestWalletDB()
   const wallet = createTestWallet()
   const notes = [
     createTestNote({ walletId: wallet.id }),
@@ -205,15 +205,15 @@ test('Wallet Database - Notes: batch insert', () => {
     createTestNote({ walletId: wallet.id }),
   ]
 
-  createWallet(db, wallet)
-  const count = insertNotesBatch(db, notes)
+  await createWallet(db, wallet)
+  const count = await insertNotesBatch(db, notes)
 
   assert.equal(count, 3)
 })
 
-test('Wallet Database - Notes: get unspent notes', () => {
+test('Wallet Database - Notes: get unspent notes', async () => {
   resetTestCounters()
-  const db = createTestWalletDB()
+  const db = await createTestWalletDB()
   const wallet = createTestWallet()
   const notes = [
     createTestNote({ walletId: wallet.id, spent: false }),
@@ -221,18 +221,18 @@ test('Wallet Database - Notes: get unspent notes', () => {
     createTestNote({ walletId: wallet.id, spent: true }),
   ]
 
-  createWallet(db, wallet)
-  insertNotesBatch(db, notes)
+  await createWallet(db, wallet)
+  await insertNotesBatch(db, notes)
 
-  const unspent = getUnspentNotes(db, wallet.id, 1)
+  const unspent = await getUnspentNotes(db, wallet.id, 1)
 
   assert.equal(unspent.length, 2)
   assert.ok(unspent.every((n) => !n.spent))
 })
 
-test('Wallet Database - Notes: get unspent notes by token', () => {
+test('Wallet Database - Notes: get unspent notes by token', async () => {
   resetTestCounters()
-  const db = createTestWalletDB()
+  const db = await createTestWalletDB()
   const wallet = createTestWallet()
   const ethToken = '0x0000000000000000000000000000000000000000'
   const daiToken = '0x6B175474E89094C44Da98b954EedeAC495271d0F'
@@ -243,37 +243,37 @@ test('Wallet Database - Notes: get unspent notes by token', () => {
     createTestNote({ walletId: wallet.id, token: daiToken, spent: false }),
   ]
 
-  createWallet(db, wallet)
-  insertNotesBatch(db, notes)
+  await createWallet(db, wallet)
+  await insertNotesBatch(db, notes)
 
-  const ethNotes = getUnspentNotesByToken(db, wallet.id, 1, ethToken)
+  const ethNotes = await getUnspentNotesByToken(db, wallet.id, 1, ethToken)
 
   assert.equal(ethNotes.length, 2)
   assert.ok(ethNotes.every((n) => n.token === ethToken))
 })
 
-test('Wallet Database - Notes: mark note as spent', () => {
+test('Wallet Database - Notes: mark note as spent', async () => {
   resetTestCounters()
-  const db = createTestWalletDB()
+  const db = await createTestWalletDB()
   const wallet = createTestWallet()
   const note = createTestNote({ walletId: wallet.id, spent: false })
   const spentTxid = hexToBytes('0xfe32')
 
-  createWallet(db, wallet)
-  insertNote(db, note)
+  await createWallet(db, wallet)
+  await insertNote(db, note)
 
-  markNoteSpent(db, noteIdentity(note), spentTxid as Uint8Array)
+  await markNoteSpent(db, noteIdentity(note), spentTxid as Uint8Array)
 
-  const retrieved = getNoteByCommitment(db, noteIdentity(note))
+  const retrieved = await getNoteByCommitment(db, noteIdentity(note))
 
   assert.ok(retrieved)
   assert.equal(retrieved?.spent, true)
   assert.deepEqual(retrieved?.spentTxid, spentTxid)
 })
 
-test('Wallet Database - Notes: batch mark notes as spent', () => {
+test('Wallet Database - Notes: batch mark notes as spent', async () => {
   resetTestCounters()
-  const db = createTestWalletDB()
+  const db = await createTestWalletDB()
   const wallet = createTestWallet()
   const notes = [
     createTestNote({ walletId: wallet.id, spent: false }),
@@ -282,65 +282,65 @@ test('Wallet Database - Notes: batch mark notes as spent', () => {
   const identities = notes.map(noteIdentity)
   const spentTxid = hexToBytes('0xff32')
 
-  createWallet(db, wallet)
-  insertNotesBatch(db, notes)
+  await createWallet(db, wallet)
+  await insertNotesBatch(db, notes)
 
-  const count = markNotesSpentBatch(db, identities, spentTxid)
+  const count = await markNotesSpentBatch(db, identities, spentTxid)
 
   assert.equal(count, 2)
-  const unspent = getUnspentNotes(db, wallet.id, 1)
+  const unspent = await getUnspentNotes(db, wallet.id, 1)
   assert.equal(unspent.length, 0)
 })
 
-test('Wallet Database - Scan State: set and get', () => {
+test('Wallet Database - Scan State: set and get', async () => {
   resetTestCounters()
-  const db = createTestWalletDB()
+  const db = await createTestWalletDB()
   const wallet = createTestWallet()
   const chainId = 1
 
-  createWallet(db, wallet)
-  updateScanState(db, wallet.id, chainId, 1000n)
+  await createWallet(db, wallet)
+  await updateScanState(db, wallet.id, chainId, 1000n)
 
-  const state = getScanState(db, wallet.id, chainId)
+  const state = await getScanState(db, wallet.id, chainId)
 
   assert.ok(state)
   assert.equal(state?.lastScannedBlock, 1000n)
 })
 
-test('Wallet Database - Scan State: update existing', () => {
+test('Wallet Database - Scan State: update existing', async () => {
   resetTestCounters()
-  const db = createTestWalletDB()
+  const db = await createTestWalletDB()
   const wallet = createTestWallet()
   const chainId = 1
 
-  createWallet(db, wallet)
-  updateScanState(db, wallet.id, chainId, 1000n)
-  updateScanState(db, wallet.id, chainId, 2000n)
+  await createWallet(db, wallet)
+  await updateScanState(db, wallet.id, chainId, 1000n)
+  await updateScanState(db, wallet.id, chainId, 2000n)
 
-  const state = getScanState(db, wallet.id, chainId)
+  const state = await getScanState(db, wallet.id, chainId)
 
   assert.equal(state?.lastScannedBlock, 2000n)
 })
 
-test('Wallet Database - Scan State: support multi-chain', () => {
+test('Wallet Database - Scan State: support multi-chain', async () => {
   resetTestCounters()
-  const db = createTestWalletDB()
+  const db = await createTestWalletDB()
   const wallet = createTestWallet()
 
-  createWallet(db, wallet)
-  updateScanState(db, wallet.id, 1, 1000n) // Ethereum
-  updateScanState(db, wallet.id, 137, 5000n) // Polygon
+  await createWallet(db, wallet)
+  await updateScanState(db, wallet.id, 1, 1000n) // Ethereum
+  await updateScanState(db, wallet.id, 137, 5000n) // Polygon
 
-  const ethState = getScanState(db, wallet.id, 1)
-  const polyState = getScanState(db, wallet.id, 137)
+  const ethState = await getScanState(db, wallet.id, 1)
+  const polyState = await getScanState(db, wallet.id, 137)
 
   assert.equal(ethState?.lastScannedBlock, 1000n)
   assert.equal(polyState?.lastScannedBlock, 5000n)
 })
 
-test('Wallet Database - Transaction History: insert and retrieve', () => {
+test('Wallet Database - Transaction History: insert and retrieve', async () => {
   resetTestCounters()
-  const db = createTestWalletDB()
+  const db = await createTestWalletDB()
   const wallet = createTestWallet()
   const tx = {
     id: 'tx-1',
@@ -352,19 +352,19 @@ test('Wallet Database - Transaction History: insert and retrieve', () => {
     timestamp: new Date(),
   }
 
-  createWallet(db, wallet)
-  insertTxHistory(db, tx)
+  await createWallet(db, wallet)
+  await insertTxHistory(db, tx)
 
-  const history = getTxHistory(db, wallet.id, 1)
+  const history = await getTxHistory(db, wallet.id, 1)
 
   assert.equal(history.length, 1)
   assert.equal(history[0]!.id, tx.id)
   assert.equal(history[0]!.type, 'shield')
 })
 
-test('Wallet Database - Transaction History: return descending order', () => {
+test('Wallet Database - Transaction History: return descending order', async () => {
   resetTestCounters()
-  const db = createTestWalletDB()
+  const db = await createTestWalletDB()
   const wallet = createTestWallet()
   const txs = [
     {
@@ -396,12 +396,12 @@ test('Wallet Database - Transaction History: return descending order', () => {
     },
   ]
 
-  createWallet(db, wallet)
+  await createWallet(db, wallet)
   for (const tx of txs) {
-    insertTxHistory(db, tx)
+    await insertTxHistory(db, tx)
   }
 
-  const history = getTxHistory(db, wallet.id, 1)
+  const history = await getTxHistory(db, wallet.id, 1)
 
   assert.equal(history.length, 3)
   assert.equal(history[0]!.blockNumber, 3000n) // Most recent first
@@ -409,9 +409,9 @@ test('Wallet Database - Transaction History: return descending order', () => {
   assert.equal(history[2]!.blockNumber, 1000n)
 })
 
-test('Wallet Database - Stats: return correct counts', () => {
+test('Wallet Database - Stats: return correct counts', async () => {
   resetTestCounters()
-  const db = createTestWalletDB()
+  const db = await createTestWalletDB()
   const wallet = createTestWallet()
   const notes = [
     createTestNote({ walletId: wallet.id, spent: false }),
@@ -419,47 +419,47 @@ test('Wallet Database - Stats: return correct counts', () => {
     createTestNote({ walletId: wallet.id, spent: true }),
   ]
 
-  createWallet(db, wallet)
-  insertNotesBatch(db, notes)
+  await createWallet(db, wallet)
+  await insertNotesBatch(db, notes)
 
-  const stats = getWalletDBStats(db, wallet.id)
+  const stats = await getWalletDBStats(db, wallet.id)
 
   assert.equal(stats.notes, 3)
   assert.equal(stats.unspentNotes, 2)
 })
 
-test('Wallet Database - Cascade Delete: delete wallet data', () => {
+test('Wallet Database - Cascade Delete: delete wallet data', async () => {
   resetTestCounters()
-  const db = createTestWalletDB()
+  const db = await createTestWalletDB()
   const wallet = createTestWallet()
   const note = createTestNote({ walletId: wallet.id })
 
-  createWallet(db, wallet)
-  insertNote(db, note)
+  await createWallet(db, wallet)
+  await insertNote(db, note)
 
-  deleteWallet(db, wallet.id)
+  await deleteWallet(db, wallet.id)
 
-  assert.equal(getWallet(db, wallet.id), undefined)
-  assert.equal(getNoteByCommitment(db, noteIdentity(note)), undefined)
+  assert.equal(await getWallet(db, wallet.id), undefined)
+  assert.equal(await getNoteByCommitment(db, noteIdentity(note)), undefined)
 })
 
-test('Wallet Database - Token Case: insertNote stores token lowercase', () => {
+test('Wallet Database - Token Case: insertNote stores token lowercase', async () => {
   resetTestCounters()
-  const db = createTestWalletDB()
+  const db = await createTestWalletDB()
   const wallet = createTestWallet()
   const checksumAddress = '0x6B175474E89094C44Da98b954EedeAC495271d0F'
   const note = createTestNote({ walletId: wallet.id, token: checksumAddress })
 
-  createWallet(db, wallet)
-  insertNote(db, note)
+  await createWallet(db, wallet)
+  await insertNote(db, note)
 
-  const retrieved = getNoteByCommitment(db, noteIdentity(note))
+  const retrieved = await getNoteByCommitment(db, noteIdentity(note))
   assert.equal(retrieved?.token, checksumAddress.toLowerCase())
 })
 
-test('Wallet Database - Token Case: insertNotesBatch stores tokens lowercase', () => {
+test('Wallet Database - Token Case: insertNotesBatch stores tokens lowercase', async () => {
   resetTestCounters()
-  const db = createTestWalletDB()
+  const db = await createTestWalletDB()
   const wallet = createTestWallet()
   const checksumAddress = '0x6B175474E89094C44Da98b954EedeAC495271d0F'
   const upperAddress = '0xA0B86991C6218B36C1D19D4A2E9EB0CE3606EB48'
@@ -468,27 +468,27 @@ test('Wallet Database - Token Case: insertNotesBatch stores tokens lowercase', (
     createTestNote({ walletId: wallet.id, token: upperAddress }),
   ]
 
-  createWallet(db, wallet)
-  insertNotesBatch(db, notes)
+  await createWallet(db, wallet)
+  await insertNotesBatch(db, notes)
 
-  const allNotes = getUnspentNotes(db, wallet.id, 1)
+  const allNotes = await getUnspentNotes(db, wallet.id, 1)
   assert.equal(allNotes.length, 2)
   assert.ok(allNotes.every((n) => n.token === n.token.toLowerCase()))
 })
 
-test('Wallet Database - Token Case: getUnspentNotesByToken accepts mixed-case input', () => {
+test('Wallet Database - Token Case: getUnspentNotesByToken accepts mixed-case input', async () => {
   resetTestCounters()
-  const db = createTestWalletDB()
+  const db = await createTestWalletDB()
   const wallet = createTestWallet()
   const checksumAddress = '0x6B175474E89094C44Da98b954EedeAC495271d0F'
 
-  createWallet(db, wallet)
-  insertNotesBatch(db, [
+  await createWallet(db, wallet)
+  await insertNotesBatch(db, [
     createTestNote({ walletId: wallet.id, token: checksumAddress }),
     createTestNote({ walletId: wallet.id, token: checksumAddress }),
   ])
 
-  assert.equal(getUnspentNotesByToken(db, wallet.id, 1, checksumAddress).length, 2)
-  assert.equal(getUnspentNotesByToken(db, wallet.id, 1, checksumAddress.toLowerCase()).length, 2)
-  assert.equal(getUnspentNotesByToken(db, wallet.id, 1, checksumAddress.toUpperCase()).length, 2)
+  assert.equal((await getUnspentNotesByToken(db, wallet.id, 1, checksumAddress)).length, 2)
+  assert.equal((await getUnspentNotesByToken(db, wallet.id, 1, checksumAddress.toLowerCase())).length, 2)
+  assert.equal((await getUnspentNotesByToken(db, wallet.id, 1, checksumAddress.toUpperCase())).length, 2)
 })

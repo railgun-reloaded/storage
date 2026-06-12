@@ -32,7 +32,7 @@ const DEFAULT_WALLET_MIGRATION_FOLDER = './drizzle/wallet'
  *   verbosity.
  * @returns WalletDB instance.
  */
-function createWalletDB (config: WalletDBConfig): WalletDB {
+async function createWalletDB (config: WalletDBConfig): Promise<WalletDB> {
   const {
     path: dbPath,
     runMigrations = true,
@@ -91,7 +91,7 @@ function configurePragmas (sqlite: Database.Database): void {
  * Close a wallet database if it is not currently in a transaction.
  * @param db - Wallet database instance to close.
  */
-function closeWalletDB (db: WalletDB): void {
+async function closeWalletDB (db: WalletDB): Promise<void> {
   const sqlite = db.$client
   if (sqlite && !sqlite.inTransaction) {
     sqlite.close()
@@ -102,7 +102,7 @@ function closeWalletDB (db: WalletDB): void {
  * Run optimization pragmas on the wallet database.
  * @param db - Wallet database instance to optimize.
  */
-function optimizeWalletDB (db: WalletDB): void {
+async function optimizeWalletDB (db: WalletDB): Promise<void> {
   const sqlite = db.$client
   sqlite.pragma('analysis_limit = 1000')
   sqlite.pragma('optimize')
@@ -113,7 +113,7 @@ function optimizeWalletDB (db: WalletDB): void {
  * @param db - Wallet database instance to inspect.
  * @returns Total size in bytes.
  */
-function getWalletDBSize (db: WalletDB): number {
+async function getWalletDBSize (db: WalletDB): Promise<number> {
   const sqlite = db.$client
   const result = sqlite.pragma('page_count', { simple: true }) as number
   const pageSize = sqlite.pragma('page_size', { simple: true }) as number
@@ -125,9 +125,9 @@ function getWalletDBSize (db: WalletDB): number {
  * @param db - Wallet database instance to back up.
  * @param backupPath - Destination file path for the backup.
  */
-function backupWalletDB (db: WalletDB, backupPath: string): void {
+async function backupWalletDB (db: WalletDB, backupPath: string): Promise<void> {
   const sqlite = db.$client
-  sqlite.backup(backupPath)
+  await sqlite.backup(backupPath)
 }
 
 /**
@@ -136,7 +136,7 @@ function backupWalletDB (db: WalletDB, backupPath: string): void {
  * @param _newKey - New encryption key to set.
  * @throws Always throws until SQLCipher support is added.
  */
-function rekeyWalletDB (_db: WalletDB, _newKey: string): void {
+async function rekeyWalletDB (_db: WalletDB, _newKey: string): Promise<void> {
   // Future: SQLCipher rekey
   // const sqlite = db.$client;
   // sqlite.pragma(`rekey = '${newKey}'`);

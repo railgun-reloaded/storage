@@ -26,11 +26,11 @@ enum CommitmentType {
  * Initializes schema tables manually since migrations don't run for :memory:.
  * @returns - ChainDB Instance
  */
-function createTestChainDB (): ChainDB {
+async function createTestChainDB (): Promise<ChainDB> {
   // We still need to run db:generate command even though we are making in-memory database
   // This prevent us from manually writing query to generate the table and allow us to
   // directly migration from existing file.
-  const db = createChainDB({
+  const db = await createChainDB({
     path: ':memory:',
     runMigrations: true,
     verbose: false,
@@ -52,8 +52,8 @@ function randomBytes (byteSize: number) : Uint8Array {
  * Initializes schema tables manually since migrations don't run for :memory:.
  * @returns - WalletDB Instane
  */
-function createTestWalletDB (): WalletDB {
-  const db = createWalletDB({
+async function createTestWalletDB (): Promise<WalletDB> {
+  const db = await createWalletDB({
     path: ':memory:',
     runMigrations: true,
   })

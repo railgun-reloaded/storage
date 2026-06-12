@@ -14,11 +14,11 @@ import {
   resetTestCounters
 } from './utils'
 
-test('notes table allows same nullifier bytes when tree_id differs', () => {
+test('notes table allows same nullifier bytes when tree_id differs', async () => {
   resetTestCounters()
-  const db = createTestWalletDB()
+  const db = await createTestWalletDB()
   const wallet = createTestWallet()
-  createWallet(db, wallet)
+  await createWallet(db, wallet)
 
   const noteTree0 = createTestNote({ walletId: wallet.id, treeNumber: 0 })
   const noteTree1 = createTestNote({
@@ -28,14 +28,14 @@ test('notes table allows same nullifier bytes when tree_id differs', () => {
     nullifier: noteTree0.nullifier
   })
 
-  assert.equal(insertNotesBatch(db, [noteTree0, noteTree1]), 2)
+  assert.equal(await insertNotesBatch(db, [noteTree0, noteTree1]), 2)
 })
 
-test('notes table allows same nullifier and tree_id when chain differs', () => {
+test('notes table allows same nullifier and tree_id when chain differs', async () => {
   resetTestCounters()
-  const db = createTestWalletDB()
+  const db = await createTestWalletDB()
   const wallet = createTestWallet()
-  createWallet(db, wallet)
+  await createWallet(db, wallet)
 
   const noteChain1 = createTestNote({
     walletId: wallet.id,
@@ -49,25 +49,25 @@ test('notes table allows same nullifier and tree_id when chain differs', () => {
     nullifier: noteChain1.nullifier
   })
 
-  assert.equal(insertNotesBatch(db, [noteChain1, noteChain137]), 2)
+  assert.equal(await insertNotesBatch(db, [noteChain1, noteChain137]), 2)
 
-  assert.equal(getNoteByNullifier(db, {
+  assert.equal((await getNoteByNullifier(db, {
     chainId: 1,
     nullifier: noteChain1.nullifier,
     treeNumber: 0
-  })?.chainId, 1)
-  assert.equal(getNoteByNullifier(db, {
+  }))?.chainId, 1)
+  assert.equal((await getNoteByNullifier(db, {
     chainId: 137,
     nullifier: noteChain1.nullifier,
     treeNumber: 0
-  })?.chainId, 137)
+  }))?.chainId, 137)
 })
 
-test('notes table rejects duplicate (chain_id, nullifier, tree_id) tuple', () => {
+test('notes table rejects duplicate (chain_id, nullifier, tree_id) tuple', async () => {
   resetTestCounters()
-  const db = createTestWalletDB()
+  const db = await createTestWalletDB()
   const wallet = createTestWallet()
-  createWallet(db, wallet)
+  await createWallet(db, wallet)
 
   const first = createTestNote({ walletId: wallet.id, treeNumber: 0 })
   const dup = createTestNote({
@@ -76,6 +76,6 @@ test('notes table rejects duplicate (chain_id, nullifier, tree_id) tuple', () =>
     nullifier: first.nullifier
   })
 
-  insertNotesBatch(db, [first])
-  assert.throws(() => insertNotesBatch(db, [dup]))
+  await insertNotesBatch(db, [first])
+  await assert.rejects(() => insertNotesBatch(db, [dup]))
 })

@@ -113,10 +113,10 @@ test('toDBNotes: returns empty array for empty input', () => {
   assert.ok(Array.isArray(results))
 })
 
-test('toDBNotes + insertNotesBatch round-trip persists correctly', () => {
-  const db = createTestWalletDB()
+test('toDBNotes + insertNotesBatch round-trip persists correctly', async () => {
+  const db = await createTestWalletDB()
   const wallet = createTestWallet()
-  createWallet(db, wallet)
+  await createWallet(db, wallet)
 
   const inputs: NoteInput[] = [
     {
@@ -150,10 +150,10 @@ test('toDBNotes + insertNotesBatch round-trip persists correctly', () => {
   ]
 
   const dbNotes = toDBNotes(inputs)
-  const count = insertNotesBatch(db, dbNotes)
+  const count = await insertNotesBatch(db, dbNotes)
   assert.equal(count, 2)
 
-  const found = getNoteByCommitment(db, noteIdentity(dbNotes[0]!))
+  const found = await getNoteByCommitment(db, noteIdentity(dbNotes[0]!))
   assert.ok(found !== undefined)
   assert.equal(found!.amount, 100n)
   assert.equal(found!.spent, false)
@@ -164,10 +164,10 @@ test('toDBNotes + insertNotesBatch round-trip persists correctly', () => {
   assert.ok(found!.tokenSubID.every((byte) => byte === 0))
 })
 
-test('toDBNotes + insertNotesBatch ERC721 round-trip persists tokenType=1 and tokenSubID bytes', () => {
-  const db = createTestWalletDB()
+test('toDBNotes + insertNotesBatch ERC721 round-trip persists tokenType=1 and tokenSubID bytes', async () => {
+  const db = await createTestWalletDB()
   const wallet = createTestWallet()
-  createWallet(db, wallet)
+  await createWallet(db, wallet)
 
   const subIdHex = '0x' + 'ab'.repeat(32)
   const inputs: NoteInput[] = [
@@ -188,20 +188,20 @@ test('toDBNotes + insertNotesBatch ERC721 round-trip persists tokenType=1 and to
   ]
 
   const dbNotes = toDBNotes(inputs)
-  const count = insertNotesBatch(db, dbNotes)
+  const count = await insertNotesBatch(db, dbNotes)
   assert.equal(count, 1)
 
-  const found = getNoteByCommitment(db, noteIdentity(dbNotes[0]!))
+  const found = await getNoteByCommitment(db, noteIdentity(dbNotes[0]!))
   assert.ok(found !== undefined)
   assert.equal(found!.tokenType, 1)
   assert.equal(found!.tokenSubID.length, 32)
   assert.ok(found!.tokenSubID.every((byte) => byte === 0xab))
 })
 
-test('insertNotesBatch: two notes on same token address with distinct tokenSubIDs persist as separate rows', () => {
-  const db = createTestWalletDB()
+test('insertNotesBatch: two notes on same token address with distinct tokenSubIDs persist as separate rows', async () => {
+  const db = await createTestWalletDB()
   const wallet = createTestWallet()
-  createWallet(db, wallet)
+  await createWallet(db, wallet)
 
   const sharedToken = '0xbc4ca0eda7647a8ab7c2061c2e118a18a936f13d'
   const subId1Hex = `0x${'00'.repeat(31)}01`
@@ -239,21 +239,21 @@ test('insertNotesBatch: two notes on same token address with distinct tokenSubID
   ]
 
   const dbNotes = toDBNotes(inputs)
-  const count = insertNotesBatch(db, dbNotes)
+  const count = await insertNotesBatch(db, dbNotes)
   assert.equal(count, 2)
 
-  const found1 = getNoteByCommitment(db, noteIdentity(dbNotes[0]!))
-  const found2 = getNoteByCommitment(db, noteIdentity(dbNotes[1]!))
+  const found1 = await getNoteByCommitment(db, noteIdentity(dbNotes[0]!))
+  const found2 = await getNoteByCommitment(db, noteIdentity(dbNotes[1]!))
   assert.ok(found1 !== undefined)
   assert.ok(found2 !== undefined)
   assert.equal(found1!.tokenSubID[31], 0x01)
   assert.equal(found2!.tokenSubID[31], 0x02)
 })
 
-test('toDBNotes + insertNotesBatch handles duplicates idempotently', () => {
-  const db = createTestWalletDB()
+test('toDBNotes + insertNotesBatch handles duplicates idempotently', async () => {
+  const db = await createTestWalletDB()
   const wallet = createTestWallet()
-  createWallet(db, wallet)
+  await createWallet(db, wallet)
 
   const inputs: NoteInput[] = [
     {
@@ -273,7 +273,7 @@ test('toDBNotes + insertNotesBatch handles duplicates idempotently', () => {
   ]
 
   const dbNotes = toDBNotes(inputs)
-  insertNotesBatch(db, dbNotes)
-  const secondCount = insertNotesBatch(db, toDBNotes(inputs))
+  await insertNotesBatch(db, dbNotes)
+  const secondCount = await insertNotesBatch(db, toDBNotes(inputs))
   assert.equal(secondCount, 0)
 })
