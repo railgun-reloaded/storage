@@ -1,6 +1,8 @@
-# @reloaded/storage
+# @railgun-reloaded/storage
 
-Persistence layer for RAILGUN Reloaded using Drizzle ORM with SQLite.
+Persistence layer for RAILGUN Reloaded using Drizzle ORM with SQLite (better-sqlite3).
+
+All public functions are asynchronous and return a `Promise`, so the same API shape works on runtimes where storage is async-only (browsers, React Native).
 
 ## Overview
 
@@ -14,8 +16,8 @@ RAILGUN Reloaded uses a **two-database architecture** for optimal performance an
 - No encryption needed (public data)
 
 ### wallet.db - Private Wallet Data
-- One database per wallet
-- Stores encrypted keys, decrypted notes, balances, scan state, transaction history
+- One database per consumer (holds multiple wallets)
+- Stores encrypted keys, decrypted notes, PPOI status, scan state, transaction history
 - Small database (~1K-10K entries)
 - Critical for backup/restore
 - Can be encrypted at rest
@@ -23,7 +25,7 @@ RAILGUN Reloaded uses a **two-database architecture** for optimal performance an
 ## Installation
 
 ```bash
-pnpm add @reloaded/storage
+npm install @railgun-reloaded/storage
 ```
 
 ## Quick Start
@@ -31,28 +33,28 @@ pnpm add @reloaded/storage
 ### Chain Database
 
 ```typescript
-import { createChainDB, insertNullifiersBatch, nullifierExists } from '@reloaded/storage/chain';
+import { createChainDB, insertNullifiersBatch, nullifierExists } from '@railgun-reloaded/storage';
 
 // Create chain database (shared across wallets)
-const chainDb = createChainDB({
+const chainDb = await createChainDB({
   path: '~/.railgun/chains/1/chain.db', // Ethereum mainnet
 });
 
 // Insert nullifiers in batch
 const nullifiers = [
   {
-    nullifier: '0x123...',
-    txid: '0xabc...',
+    nullifier: new Uint8Array(32),       // 32-byte nullifier
+    transactionHash: new Uint8Array(32), // EVM tx hash
     blockNumber: 18000000n,
-    treeId: 0,
+    treeNumber: 0,
   },
   // ... more nullifiers
 ];
 
-insertNullifiersBatch(chainDb, nullifiers);
+await insertNullifiersBatch(chainDb, nullifiers);
 
 // Check if nullifier exists (spent note)
-const isSpent = nullifierExists(chainDb, '0x123...');
+const isSpent = await nullifierExists(chainDb, nullifiers[0].nullifier, 0);
 ```
 
 ### Wallet Database
@@ -63,40 +65,38 @@ import {
   createWallet,
   insertNote,
   getUnspentNotes,
-  recalculateBalance,
-} from '@reloaded/storage/wallet';
+} from '@railgun-reloaded/storage';
 
-// Create wallet database (per-wallet)
-const walletDb = createWalletDB({
-  path: '~/.railgun/wallets/my-wallet/wallet.db',
+// Create wallet database
+const walletDb = await createWalletDB({
+  path: '~/.railgun/wallets.db',
 });
 
 // Create wallet
-createWallet(walletDb, {
+await createWallet(walletDb, {
   id: 'wallet-1',
-  encryptedKeys: Buffer.from('...encrypted keys...'),
+  encryptedKeys: encryptedKeyBundle, // Uint8Array, encrypted by the caller
   name: 'My RAILGUN Wallet',
 });
 
 // Insert decrypted note
-insertNote(walletDb, {
-  commitment: '0x456...',
+await insertNote(walletDb, {
+  commitment: commitmentBytes, // Uint8Array
   walletId: 'wallet-1',
-  nullifier: '0x789...',
+  chainId: 1,
+  nullifier: nullifierBytes,   // Uint8Array
   token: '0x0000000000000000000000000000000000000000', // ETH
   amount: 1000000000000000000n, // 1 ETH
   spent: false,
   blockNumber: 18000000n,
-  treeId: 0,
-  leafIndex: 12345n,
+  treeNumber: 0,
+  treePosition: 12345,
+  commitmentType: 0,
 });
 
-// Get unspent notes
-const unspent = getUnspentNotes(walletDb, 'wallet-1');
-
-// Recalculate balance
-const ethToken = '0x0000000000000000000000000000000000000000';
-const balance = recalculateBalance(walletDb, 'wallet-1', ethToken);
+// Get unspent notes and compute a balance
+const unspent = await getUnspentNotes(walletDb, 'wallet-1', 1);
+const balance = unspent.reduce((sum, note) => sum + note.amount, 0n);
 console.log(`Balance: ${balance} wei`);
 ```
 
@@ -107,7 +107,7 @@ console.log(`Balance: ${balance} wei`);
 #### Factory
 
 ```typescript
-createChainDB(config: ChainDBConfig): ChainDB
+createChainDB(config: ChainDBConfig): Promise<ChainDB>
 ```
 
 **ChainDBConfig:**
@@ -120,71 +120,118 @@ createChainDB(config: ChainDBConfig): ChainDB
 
 ```typescript
 // Check existence
-nullifierExists(db: ChainDB, nullifier: string): boolean
+nullifierExists(db: ChainDB, nullifier: Uint8Array, treeNumber: number): Promise<boolean>
 
 // Batch insert
-insertNullifiersBatch(db: ChainDB, records: NewNullifier[]): number
+insertNullifiersBatch(db: ChainDB, records: DBNewNullifier[]): Promise<number>
 
-// Query by block range
-getNullifiersByBlockRange(db: ChainDB, fromBlock: bigint, toBlock: bigint): Nullifier[]
+// Query by block range / from block / all
+getNullifiersByBlockRange(db: ChainDB, fromBlock: bigint, toBlock: bigint): Promise<DBNullifier[]>
+getNullifiersFromBlock(db: ChainDB, fromBlock: bigint): Promise<DBNullifier[]>
+getAllNullifiers(db: ChainDB): Promise<DBNullifier[]>
 
 // Delete from block (reorg)
-deleteNullifiersFromBlock(db: ChainDB, fromBlock: bigint): number
+deleteNullifiersFromBlock(db: ChainDB, fromBlock: bigint): Promise<number>
 ```
 
 #### Merkle Tree Operations
 
+Trees are stored as one row per tree: the serialized leaf buffer plus its leaf count.
+
 ```typescript
-// Get node
-getMerkleNode(db: ChainDB, treeId: number, level: number, index: bigint): MerkleNode | undefined
+// Get one tree / all trees
+getMerkleTree(db: ChainDB, treeNumber: number): Promise<DBMerkleTree | undefined>
+getAllMerkleTrees(db: ChainDB): Promise<DBMerkleTree[]>
 
-// Batch insert
-insertMerkleNodesBatch(db: ChainDB, nodes: NewMerkleNode[]): number
-
-// Get sibling path for proof
-getMerkleSiblingPath(db: ChainDB, treeId: number, leafIndex: bigint, depth: number): Uint8Array[]
+// Upsert a tree
+setMerkleTree(db: ChainDB, tree: DBNewMerkleTree): Promise<number>
 ```
 
 #### Commitment Operations
 
 ```typescript
 // Batch insert
-insertCommitmentsBatch(db: ChainDB, records: NewCommitment[]): number
+insertCommitmentBatch(db: ChainDB, records: DBNewCommitment[]): Promise<number>
 
 // Query by leaf range
-getCommitmentsByLeafRange(db: ChainDB, treeId: number, fromIndex: bigint, toIndex: bigint): Commitment[]
+getCommitmentsByLeafRange(db: ChainDB, treeNumber: number, startLeafIndex: number, endLeafIndex: number): Promise<DBCommitment[]>
 
 // Query by block range
-getCommitmentsByBlockRange(db: ChainDB, fromBlock: bigint, toBlock: bigint): Commitment[]
+getCommitmentsByBlockRange(db: ChainDB, fromBlock: bigint, toBlock: bigint): Promise<DBCommitment[]>
 
-// Batch lookup
-getCommitmentsByHashes(db: ChainDB, hashes: string[]): Commitment[]
+// Delete from block (reorg)
+deleteCommitmentsFromBlock(db: ChainDB, fromBlock: bigint): Promise<number>
 ```
 
 #### Sync State
 
 ```typescript
 // Get state
-getSyncState(db: ChainDB, chainId: number): SyncState | undefined
+getSyncState(db: ChainDB, chainID: number): Promise<SyncState | undefined>
 
 // Update state
-updateSyncState(db: ChainDB, chainId: number, lastBlock: bigint): void
+updateSyncState(db: ChainDB, chainID: number, lastBlockHeight: bigint): Promise<number>
+
+// Independent Railgun TXID cursor (lags lastBlockHeight when events
+// came from a source without PPOI transaction data)
+getTxidSyncCursor(db: ChainDB, chainID: number): Promise<bigint>
+setTxidSyncCursor(db: ChainDB, chainID: number, blockHeight: bigint): Promise<number>
+```
+
+#### Railgun Transactions
+
+```typescript
+// Insert, ignoring already-seen Railgun TXIDs
+insertRailgunTransactions(db: ChainDB, rows: DBNewRailgunTransaction[]): Promise<number>
+
+// Lookups
+getRailgunTransactionByTxid(db: ChainDB, railgunTxid: Uint8Array): Promise<DBRailgunTransaction | undefined>
+getRailgunTransactionsByBlockRange(db: ChainDB, fromBlock: bigint, toBlock: bigint): Promise<DBRailgunTransaction[]>
+getRailgunTransactionsByTreeRange(db: ChainDB, utxoTreeOut: number, startPosition: number, endPosition: number): Promise<DBRailgunTransaction[]>
+
+// Find the transaction whose output batch contains a commitment slot
+findRailgunTransactionForLeaf(db: ChainDB, treeNumber: number, treePosition: number): Promise<DBRailgunTransaction | undefined>
+```
+
+#### Unshields
+
+```typescript
+insertUnshieldBatch(db: ChainDB, records: DBNewUnshield[]): Promise<number>
+getUnshieldsByBlockRange(db: ChainDB, fromBlock: bigint, toBlock: bigint): Promise<DBUnshield[]>
+```
+
+#### Scan Batch
+
+`insertScanBatch` persists one scan batch atomically — all members plus the sync cursors are written in a single transaction. The Railgun TXID cursor advances only when at least one new Railgun transaction row was inserted. There is no public transaction API; this and the other batch functions are the atomicity primitives.
+
+```typescript
+insertScanBatch(db: ChainDB, batch: ScanBatch): Promise<void>
+
+type ScanBatch = {
+  chainID: number
+  blockNumber: bigint
+  nullifiers?: DBNewNullifier[]
+  commitments?: DBNewCommitment[]
+  unshields?: DBNewUnshield[]
+  railgunTransactions?: DBNewRailgunTransaction[]
+  merkleTrees?: DBNewMerkleTree[]
+}
 ```
 
 #### Utilities
 
 ```typescript
-// Get stats
-getChainDBStats(db: ChainDB): { nullifiers: number, merkleNodes: number, commitments: number, merkleRoots: number }
+// Database file size in bytes
+getChainDBSize(db: ChainDB): Promise<number>
 
 // Optimize database
-optimizeChainDB(db: ChainDB, vacuum?: boolean): void
+optimizeChainDB(db: ChainDB, vacuum?: boolean): Promise<void>
 
 // Backup
-backupChainDB(db: ChainDB, backupPath: string): void
+backupChainDB(db: ChainDB, backupPath: string): Promise<void>
 
 // Close
-closeChainDB(db: ChainDB): void
+closeChainDB(db: ChainDB): Promise<void>
 ```
 
 ### Wallet Database
@@ -192,7 +239,7 @@ closeChainDB(db: ChainDB): void
 #### Factory
 
 ```typescript
-createWalletDB(config: WalletDBConfig): WalletDB
+createWalletDB(config: WalletDBConfig): Promise<WalletDB>
 ```
 
 **WalletDBConfig:**
@@ -206,153 +253,164 @@ createWalletDB(config: WalletDBConfig): WalletDB
 
 ```typescript
 // Create wallet
-createWallet(db: WalletDB, wallet: NewWallet): string
+createWallet(db: WalletDB, wallet: DBNewWallet): Promise<string>
 
 // Get wallet
-getWallet(db: WalletDB, walletId: string): Wallet | undefined
+getWallet(db: WalletDB, walletId: string): Promise<DBWallet | undefined>
 
 // List wallets
-listWallets(db: WalletDB): Wallet[]
+listWallets(db: WalletDB): Promise<DBWallet[]>
 
 // Delete wallet (cascades to all data)
-deleteWallet(db: WalletDB, walletId: string): number
+deleteWallet(db: WalletDB, walletId: string): Promise<number>
 ```
 
 #### Note Operations
 
 ```typescript
 // Insert single note
-insertNote(db: WalletDB, note: NewNote): void
+insertNote(db: WalletDB, note: DBNewNote): Promise<void>
 
-// Batch insert
-insertNotesBatch(db: WalletDB, notes: NewNote[]): number
+// Batch insert (merges missing PPOI fields on conflict)
+insertNotesBatch(db: WalletDB, notes: DBNewNote[]): Promise<number>
 
 // Get unspent notes
-getUnspentNotes(db: WalletDB, walletId: string, chainId: number): Note[]
+getUnspentNotes(db: WalletDB, walletId: string, chainId: number): Promise<DBNote[]>
 
 // Get unspent notes by token
-getUnspentNotesByToken(db: WalletDB, walletId: string, chainId: number, token: string): Note[]
+getUnspentNotesByToken(db: WalletDB, walletId: string, chainId: number, token: string): Promise<DBNote[]>
+
+// Get all notes (spent and unspent)
+getAllNotes(db: WalletDB, walletId: string, chainId: number): Promise<DBNote[]>
 
 // Get note by scoped wallet/chain/commitment identity
-getNoteByCommitment(db: WalletDB, identity: NoteIdentity): Note | undefined
+getNoteByCommitment(db: WalletDB, identity: NoteIdentity): Promise<DBNote | undefined>
 
 // Get note by scoped chain/nullifier/tree identity
-getNoteByNullifier(db: WalletDB, identity: NoteNullifierIdentity): Note | undefined
+getNoteByNullifier(db: WalletDB, identity: NoteNullifierIdentity): Promise<DBNote | undefined>
 
 // Mark spent
-markNoteSpent(db: WalletDB, identity: NoteIdentity, spentTxid: Uint8Array): number
+markNoteSpent(db: WalletDB, identity: NoteIdentity, spentTxid: Uint8Array): Promise<number>
 
 // Batch mark spent
-markNotesSpentBatch(db: WalletDB, identities: NoteIdentity[], spentTxid: Uint8Array): number
+markNotesSpentBatch(db: WalletDB, identities: NoteIdentity[], spentTxid: Uint8Array): Promise<number>
+
+// PPOI status
+getNotesNeedingPoiRefresh(db: WalletDB, walletId: string, chainId: number): Promise<DBNote[]>
+updateNotePoiStatus(db: WalletDB, identity: NoteIdentity, blindedCommitment: Uint8Array, poisPerList: Record<string, string> | null): Promise<number>
+updateNotePoiStatusBatch(db: WalletDB, updates: NotePoiStatusUpdate[]): Promise<number>
 ```
 
-#### Balance Operations
-
-```typescript
-// Recalculate single balance
-recalculateBalance(db: WalletDB, walletId: string, token: string): bigint
-
-// Recalculate all balances
-recalculateAllBalances(db: WalletDB, walletId: string): void
-
-// Get balance
-getBalance(db: WalletDB, walletId: string, token: string): Balance | undefined
-
-// Get all balances
-getAllBalances(db: WalletDB, walletId: string): Balance[]
-```
+Token addresses are stored lowercase; query functions normalize their `token` argument, so callers may pass any casing. The `toDBNote`/`toDBNotes` helpers (synchronous) convert hex-string `NoteInput` records into `DBNewNote` rows.
 
 #### Scan State
 
 ```typescript
 // Get scan state
-getScanState(db: WalletDB, walletId: string, chainId: number): ScanState | undefined
+getScanState(db: WalletDB, walletId: string, chainId: number): Promise<DBScanState | undefined>
 
 // Update scan state
-updateScanState(db: WalletDB, walletId: string, chainId: number, lastScannedBlock: bigint): void
+updateScanState(db: WalletDB, walletId: string, chainId: number, lastScannedBlock: bigint): Promise<void>
 ```
 
 #### Transaction History
 
 ```typescript
 // Insert transaction
-insertTxHistory(db: WalletDB, tx: NewTxHistory): void
+insertTxHistory(db: WalletDB, tx: DBNewTxHistory): Promise<void>
 
-// Get history
-getTxHistory(db: WalletDB, walletId: string, limit?: number): TxHistory[]
+// Batch insert
+insertTxHistoryBatch(db: WalletDB, txs: DBNewTxHistory[]): Promise<number>
+
+// Get history (ordered by block number descending)
+getTxHistory(db: WalletDB, walletId: string, chainId: number, limit?: number): Promise<DBTxHistory[]>
+
+// Get one entry by ID
+getTxById(db: WalletDB, txId: string): Promise<DBTxHistory | undefined>
+```
+
+#### Stats
+
+```typescript
+getWalletDBStats(db: WalletDB, walletId: string): Promise<{ notes: number, unspentNotes: number, transactions: number }>
 ```
 
 ## Type Definitions
 
 ### Chain Types
 
+Row types (`DBNullifier`, `DBCommitment`, …) and insert types (`DBNewNullifier`, …) are inferred from the Drizzle schemas in `src/chain/schema.ts` and re-exported from the package root.
+
 ```typescript
-type Nullifier = {
-  nullifier: string;
-  txid: string;
+type DBNullifier = {
+  nullifier: Uint8Array;       // 32 bytes
+  transactionHash: Uint8Array;
   blockNumber: bigint;
-  treeId: number;
-  createdAt: Date;
+  treeNumber: number;
 };
 
-type MerkleNode = {
-  treeId: number;
-  level: number;
-  index: bigint;
+type DBMerkleTree = {
+  treeNumber: number;
+  leaves: Uint8Array;          // serialized tree leaves
+  leafCount: number;
+};
+
+type DBCommitment = {
   hash: Uint8Array;
-  createdAt: Date;
-};
-
-type Commitment = {
-  hash: string;
-  treeId: number;
-  leafIndex: bigint;
+  transactionHash: Uint8Array;
   blockNumber: bigint;
-  txid: string;
-  createdAt: Date;
+  treeNumber: number;
+  treePosition: number;
+  commitmentType: number;      // 0 = shield, 1 = transact
+  commitment: unknown;         // msgpack-encoded commitment data
 };
 
 type SyncState = {
-  chainId: number;
-  lastBlock: bigint;
-  updatedAt: Date;
+  chainID: number;
+  lastBlockHeight: bigint;
+  lastTxidSyncBlockHeight: bigint;
 };
 ```
 
 ### Wallet Types
 
 ```typescript
-type Wallet = {
+type DBWallet = {
   id: string;
   encryptedKeys: Uint8Array;
   name: string | null;
   createdAt: Date;
 };
 
-type Note = {
-  commitment: string;
+type DBNote = {
+  commitment: Uint8Array;
   walletId: string;
-  nullifier: string;
-  token: string;
+  chainId: number;
+  nullifier: Uint8Array;
+  token: string;                 // lowercase address
   amount: bigint;
+  tokenType: number;             // 0 = ERC20, 1 = ERC721
+  tokenSubID: Uint8Array;
   spent: boolean;
-  spentTxid: string | null;
+  spentTxid: Uint8Array | null;
   blockNumber: bigint;
-  treeId: number;
-  leafIndex: bigint;
+  treeNumber: number;
+  treePosition: number;
+  commitmentType: number;
+  outputType: number | null;
+  npk: Uint8Array | null;
+  random: Uint8Array | null;
+  blindedCommitment: Uint8Array | null;
+  creationRailgunTxid: Uint8Array | null;
+  creationTxid: Uint8Array | null;
+  poisPerList: unknown;          // msgpack-encoded PPOI statuses by list key
   decryptedAt: Date;
 };
 
-type Balance = {
-  walletId: string;
-  token: string;
-  amount: bigint;
-  updatedAt: Date;
-};
-
-type TxHistory = {
+type DBTxHistory = {
   id: string;
   walletId: string;
+  chainId: number;
   type: 'shield' | 'transfer' | 'unshield';
   txid: string;
   blockNumber: bigint;
@@ -367,114 +425,81 @@ type TxHistory = {
 ### Handling Reorgs
 
 ```typescript
-import { deleteNullifiersFromBlock, deleteCommitmentsFromBlock } from '@reloaded/storage/chain';
+import { deleteNullifiersFromBlock, deleteCommitmentsFromBlock } from '@railgun-reloaded/storage';
 
-function handleReorg(chainDb: ChainDB, reorgBlock: bigint) {
+async function handleReorg(chainDb: ChainDB, reorgBlock: bigint) {
   // Delete all data from the reorged block onwards
-  const deletedNullifiers = deleteNullifiersFromBlock(chainDb, reorgBlock);
-  const deletedCommitments = deleteCommitmentsFromBlock(chainDb, reorgBlock);
+  const deletedNullifiers = await deleteNullifiersFromBlock(chainDb, reorgBlock);
+  const deletedCommitments = await deleteCommitmentsFromBlock(chainDb, reorgBlock);
 
   console.log(`Reorg: deleted ${deletedNullifiers} nullifiers, ${deletedCommitments} commitments`);
 
   // Update sync state to resync from reorg point
-  updateSyncState(chainDb, 1, reorgBlock - 1n);
+  await updateSyncState(chainDb, 1, reorgBlock - 1n);
 }
 ```
 
 ### Batch Operations for Sync
 
 ```typescript
-import { insertNullifiersBatch, insertCommitmentsBatch } from '@reloaded/storage/chain';
+import { insertScanBatch } from '@railgun-reloaded/storage';
 
 async function syncBlock(chainDb: ChainDB, blockNumber: bigint) {
   // Fetch data from blockchain
   const nullifiers = await fetchNullifiersFromBlock(blockNumber);
   const commitments = await fetchCommitmentsFromBlock(blockNumber);
 
-  // Batch insert with transaction (automatic in helpers)
-  insertNullifiersBatch(chainDb, nullifiers);
-  insertCommitmentsBatch(chainDb, commitments);
-
-  // Update sync state
-  updateSyncState(chainDb, 1, blockNumber);
-}
-```
-
-### Merkle Proof Generation
-
-```typescript
-import { getMerkleSiblingPath } from '@reloaded/storage/chain';
-
-function generateMerkleProof(chainDb: ChainDB, leafIndex: bigint) {
-  const treeId = 0;
-  const depth = 20; // RAILGUN tree depth
-
-  // Get sibling hashes for proof
-  const siblings = getMerkleSiblingPath(chainDb, treeId, leafIndex, depth);
-
-  return {
-    leafIndex,
-    siblings,
-  };
+  // One atomic write: rows + sync cursor commit (or roll back) together
+  await insertScanBatch(chainDb, {
+    chainID: 1,
+    blockNumber,
+    nullifiers,
+    commitments,
+  });
 }
 ```
 
 ### Balance Calculation
 
+Balances are not cached in the database — they are computed from unspent notes.
+
 ```typescript
-import { getUnspentNotes, recalculateBalance } from '@reloaded/storage/wallet';
+import { getUnspentNotesByToken } from '@railgun-reloaded/storage';
 
-function getWalletBalance(walletDb: WalletDB, walletId: string, token: string) {
-  // Option 1: Calculate from notes (always accurate)
-  const unspentNotes = getUnspentNotes(walletDb, walletId).filter(
-    (note) => note.token === token
-  );
-  const balance = unspentNotes.reduce((sum, note) => sum + note.amount, 0n);
-
-  // Option 2: Use cached balance (faster, may be stale)
-  const cachedBalance = getBalance(walletDb, walletId, token);
-
-  // Option 3: Recalculate and cache (recommended)
-  const freshBalance = recalculateBalance(walletDb, walletId, token);
-
-  return freshBalance;
+async function getWalletBalance(walletDb: WalletDB, walletId: string, chainId: number, token: string) {
+  const unspentNotes = await getUnspentNotesByToken(walletDb, walletId, chainId, token);
+  return unspentNotes.reduce((sum, note) => sum + note.amount, 0n);
 }
 ```
 
 ### Multi-Wallet Scanning
 
 ```typescript
-import { createWalletDB, getScanState, updateScanState } from '@reloaded/storage/wallet';
-import { createChainDB, getCommitmentsByBlockRange } from '@reloaded/storage/chain';
+import { getCommitmentsByBlockRange, getScanState, insertNotesBatch, listWallets, updateScanState } from '@railgun-reloaded/storage';
 
-async function scanWallets(chainDb: ChainDB, walletDbs: WalletDB[], chainId: number) {
-  for (const walletDb of walletDbs) {
-    const wallets = listWallets(walletDb);
+async function scanWallets(chainDb: ChainDB, walletDb: WalletDB, chainId: number) {
+  const wallets = await listWallets(walletDb);
 
-    for (const wallet of wallets) {
-      // Get last scanned position
-      const scanState = getScanState(walletDb, wallet.id, chainId);
-      const lastScannedBlock = scanState?.lastScannedBlock ?? 0n;
+  for (const wallet of wallets) {
+    // Get last scanned position
+    const scanState = await getScanState(walletDb, wallet.id, chainId);
+    const lastScannedBlock = scanState?.lastScannedBlock ?? 0n;
 
-      // Fetch new commitments from chain.db
-      const newCommitments = getCommitmentsByBlockRange(
-        chainDb,
-        lastScannedBlock + 1n,
-        lastScannedBlock + 1000n // Scan in chunks
-      );
+    // Fetch new commitments from chain.db
+    const newCommitments = await getCommitmentsByBlockRange(
+      chainDb,
+      lastScannedBlock + 1n,
+      lastScannedBlock + 1000n // Scan in chunks
+    );
 
-      // Decrypt commitments for this wallet
-      const decryptedNotes = await decryptCommitments(wallet, newCommitments);
+    // Decrypt commitments for this wallet
+    const decryptedNotes = await decryptCommitments(wallet, newCommitments);
 
-      // Insert notes
-      insertNotesBatch(walletDb, decryptedNotes);
+    // Insert notes
+    await insertNotesBatch(walletDb, decryptedNotes);
 
-      // Update scan state
-      updateScanState(walletDb, wallet.id, chainId, lastScannedBlock + 1000n);
-
-      // Recalculate balances
-      recalculateAllBalances(walletDb, wallet.id);
-    }
+    // Update scan state
+    await updateScanState(walletDb, wallet.id, chainId, lastScannedBlock + 1000n);
   }
 }
 ```
@@ -487,8 +512,6 @@ async function scanWallets(chainDb: ChainDB, walletDbs: WalletDB[], chainId: num
 
 ### Read Performance
 - Critical indexes are pre-configured
-- Use cached balances instead of recalculating from notes
-- Consider connection pooling for multi-threaded applications
 
 ### Database Size
 - **chain.db**: ~1-2GB per year per chain (nullifiers + commitments + nodes)
@@ -497,14 +520,14 @@ async function scanWallets(chainDb: ChainDB, walletDbs: WalletDB[], chainId: num
 ### Optimization
 
 ```typescript
-import { optimizeChainDB, optimizeWalletDB } from '@reloaded/storage';
+import { optimizeChainDB, optimizeWalletDB } from '@railgun-reloaded/storage';
 
 // Run periodically (e.g., after bulk imports)
-optimizeChainDB(chainDb, false); // ANALYZE only
-optimizeWalletDB(walletDb); // ANALYZE only
+await optimizeChainDB(chainDb, false); // ANALYZE only
+await optimizeWalletDB(walletDb); // ANALYZE only
 
 // Run VACUUM to reclaim space (slow)
-optimizeChainDB(chainDb, true); // ANALYZE + VACUUM
+await optimizeChainDB(chainDb, true); // ANALYZE + VACUUM
 ```
 
 ## Migrations
@@ -513,13 +536,13 @@ Generate migrations after schema changes:
 
 ```bash
 # Generate chain migrations
-pnpm db:generate:chain
+npm run db:generate:chain
 
 # Generate wallet migrations
-pnpm db:generate:wallet
+npm run db:generate:wallet
 
 # Generate both
-pnpm db:generate
+npm run db:generate
 ```
 
 Migrations are applied automatically on database creation (unless `runMigrations: false`).
@@ -527,28 +550,11 @@ Migrations are applied automatically on database creation (unless `runMigrations
 ## Testing
 
 ```bash
-# Run tests
-pnpm test
-
-# Watch mode
-pnpm test:watch
-
-# With coverage
-pnpm test -- --coverage
+# Run tests (builds first)
+npm test
 ```
 
-### Test Utilities
-
-```typescript
-import { createTestChainDB, createTestWalletDB, createTestNote } from '@reloaded/storage/test/setup';
-
-// In-memory databases for testing
-const chainDb = createTestChainDB();
-const walletDb = createTestWalletDB();
-
-// Test data factories
-const note = createTestNote({ amount: 1000n });
-```
+Tests run against in-memory databases (`path: ':memory:'`) via the factories in `test/utils.ts`.
 
 ## Security Considerations
 
@@ -569,8 +575,6 @@ const note = createTestNote({ amount: 1000n });
 - Decryption keys should be derived from user passphrase (not stored)
 
 ## Architecture
-
-See [DESIGN.md](./DESIGN.md) for detailed design decisions and schema analysis.
 
 ### Key Decisions
 - **BigInt as TEXT**: Human-readable, arbitrary precision
