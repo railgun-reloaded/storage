@@ -1,4 +1,5 @@
 import { and, eq, isNull, sql } from 'drizzle-orm'
+import type { SQLiteTransaction } from 'drizzle-orm/sqlite-core'
 
 import type { WalletDB } from './db'
 import type { DBNewNote, DBNewTxHistory, DBNewWallet } from './schema'
@@ -25,6 +26,8 @@ type NotePoiStatusUpdate = NoteIdentity & {
   blindedCommitment: Uint8Array
   poisPerList: Record<string, string> | null
 }
+
+type DBContext = WalletDB | SQLiteTransaction<any, any, any, any>
 
 /**
  * Canonical form for ERC-20 token addresses stored in or queried against the
@@ -105,8 +108,8 @@ async function listWallets (db: WalletDB) {
  * @returns Number of rows deleted (should be 0 or 1).
  */
 async function deleteWallet (db: WalletDB, walletId: string): Promise<number> {
-  return db.transaction(() => {
-    const result = db.delete(wallets).where(eq(wallets.id, walletId)).run()
+  return db.transaction((tx) => {
+    const result = tx.delete(wallets).where(eq(wallets.id, walletId)).run()
     return result.changes
   })
 }
@@ -139,8 +142,8 @@ async function insertNotesBatch (db: WalletDB, noteList: DBNewNote[]): Promise<n
     token: normalizeToken(note.token),
   }))
 
-  return db.transaction(() => {
-    const result = db
+  return db.transaction((tx) => {
+    const result = tx
       .insert(notes)
       .values(normalizedNotes)
       .onConflictDoUpdate({
@@ -246,7 +249,7 @@ async function getNoteByNullifier (db: WalletDB, identity: NoteNullifierIdentity
  * @returns Number of rows updated.
  */
 function markNoteSpentSync (
-  db: WalletDB,
+  db: DBContext,
   identity: NoteIdentity,
   spentTxid: Uint8Array
 ): number {
@@ -287,10 +290,10 @@ async function markNotesSpentBatch (
 ): Promise<number> {
   if (identities.length === 0) return 0
 
-  return db.transaction(() => {
+  return db.transaction((tx) => {
     let updated = 0
     for (const identity of identities) {
-      updated += markNoteSpentSync(db, identity, spentTxid)
+      updated += markNoteSpentSync(tx, identity, spentTxid)
     }
     return updated
   })
@@ -346,7 +349,7 @@ async function getNotesNeedingPoiRefresh (
  * @returns Number of rows updated.
  */
 function updateNotePoiStatusSync (
-  db: WalletDB,
+  db: DBContext,
   identity: NoteIdentity,
   blindedCommitment: Uint8Array,
   poisPerList: Record<string, string> | null
@@ -389,11 +392,11 @@ async function updateNotePoiStatusBatch (
 ): Promise<number> {
   if (updates.length === 0) return 0
 
-  return db.transaction(() => {
+  return db.transaction((tx) => {
     let updated = 0
     for (const update of updates) {
       updated += updateNotePoiStatusSync(
-        db,
+        tx,
         update,
         update.blindedCommitment,
         update.poisPerList
@@ -460,8 +463,8 @@ async function insertTxHistory (db: WalletDB, tx: DBNewTxHistory): Promise<void>
 async function insertTxHistoryBatch (db: WalletDB, txs: DBNewTxHistory[]): Promise<number> {
   if (txs.length === 0) return 0
 
-  return db.transaction(() => {
-    const result = db
+  return db.transaction((tx) => {
+    const result = tx
       .insert(txHistory)
       .values(txs)
       .onConflictDoNothing()

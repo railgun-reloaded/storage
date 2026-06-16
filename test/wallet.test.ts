@@ -15,11 +15,13 @@ import {
   insertNote,
   insertNotesBatch,
   insertTxHistory,
+  insertTxHistoryBatch,
   listWallets,
   markNoteSpent,
   markNotesSpentBatch,
   sentCommitments,
   updateNotePoiStatus,
+  updateNotePoiStatusBatch,
   updateScanState,
 } from '../src/wallet/index'
 
@@ -407,6 +409,60 @@ test('Wallet Database - Transaction History: return descending order', async () 
   assert.equal(history[0]!.blockNumber, 3000n) // Most recent first
   assert.equal(history[1]!.blockNumber, 2000n)
   assert.equal(history[2]!.blockNumber, 1000n)
+})
+
+test('Wallet Database - Transaction History: batch insert persists all rows', async () => {
+  resetTestCounters()
+  const db = await createTestWalletDB()
+  const wallet = createTestWallet()
+  const txs = [
+    {
+      id: 'tx-1',
+      walletId: wallet.id,
+      chainId: 1,
+      type: 'shield' as const,
+      txid: '0xtx1',
+      blockNumber: 1000n,
+      timestamp: new Date(),
+    },
+    {
+      id: 'tx-2',
+      walletId: wallet.id,
+      chainId: 1,
+      type: 'transfer' as const,
+      txid: '0xtx2',
+      blockNumber: 2000n,
+      timestamp: new Date(),
+    },
+  ]
+
+  await createWallet(db, wallet)
+  const inserted = await insertTxHistoryBatch(db, txs)
+
+  assert.equal(inserted, 2)
+  assert.equal((await getTxHistory(db, wallet.id, 1)).length, 2)
+})
+
+test('Wallet Database - Notes: batch POI status update persists all rows', async () => {
+  resetTestCounters()
+  const db = await createTestWalletDB()
+  const wallet = createTestWallet()
+  const noteA = createTestNote({ walletId: wallet.id, chainId: 1 })
+  const noteB = createTestNote({ walletId: wallet.id, chainId: 1 })
+  const blindedA = hexToBytes(`0x${'a1'.repeat(32)}`)
+  const blindedB = hexToBytes(`0x${'b2'.repeat(32)}`)
+
+  await createWallet(db, wallet)
+  assert.equal(await insertNotesBatch(db, [noteA, noteB]), 2)
+
+  const updated = await updateNotePoiStatusBatch(db, [
+    { ...noteIdentity(noteA), blindedCommitment: blindedA, poisPerList: { list: 'valid' } },
+    { ...noteIdentity(noteB), blindedCommitment: blindedB, poisPerList: null },
+  ])
+
+  assert.equal(updated, 2)
+  assert.deepEqual((await getNoteByCommitment(db, noteIdentity(noteA)))?.blindedCommitment, blindedA)
+  assert.deepEqual((await getNoteByCommitment(db, noteIdentity(noteB)))?.blindedCommitment, blindedB)
 })
 
 test('Wallet Database - Stats: return correct counts', async () => {

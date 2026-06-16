@@ -295,6 +295,12 @@ test('ChainDB: Should handle empty commitments', async () => {
   })
 })
 
+test('ChainDB: Should handle empty unshields', async () => {
+  const db = await createTestChainDB()
+  const inserted = await insertUnshieldBatch(db, [])
+  assert.equal(inserted, 0)
+})
+
 test('ChainDB: Should throw on invalid tree position', async () => {
   const db = await createTestChainDB()
   const commitment = createTestShieldCommitments(1)

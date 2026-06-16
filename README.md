@@ -2,7 +2,7 @@
 
 Persistence layer for RAILGUN Reloaded using Drizzle ORM with SQLite (better-sqlite3).
 
-All public functions are asynchronous and return a `Promise`, so the same API shape works on runtimes where storage is async-only (browsers, React Native).
+All public storage/database operations are asynchronous and return a `Promise`, so the same API shape works on runtimes where storage is async-only.
 
 ## Overview
 
@@ -10,7 +10,7 @@ RAILGUN Reloaded uses a **two-database architecture** for optimal performance an
 
 ### chain.db - Public Blockchain State
 - Shared across all wallets for a given chain
-- Stores nullifiers, merkle tree nodes, commitments, sync state
+- Stores nullifiers, commitments, unshields, Railgun transactions, serialized merkle trees, and sync state
 - Large database (~1M+ entries per year)
 - Can be deleted and resynced from blockchain
 - No encryption needed (public data)
@@ -514,7 +514,7 @@ async function scanWallets(chainDb: ChainDB, walletDb: WalletDB, chainId: number
 - Critical indexes are pre-configured
 
 ### Database Size
-- **chain.db**: ~1-2GB per year per chain (nullifiers + commitments + nodes)
+- **chain.db**: ~1-2GB per year per chain (nullifiers + commitments + merkle trees)
 - **wallet.db**: ~1-10MB per active wallet (depends on transaction count)
 
 ### Optimization

@@ -527,6 +527,7 @@ async function getRailgunTransactionsByTreeRange (
  * @returns Number of rows changed.
  */
 function insertUnshieldBatchSync (db: DBContext, unshieldsBatch: DBNewUnshield[]): number {
+  if (unshieldsBatch.length === 0) return 0
   const { changes } = upsertRow(db, unshields, [unshields.transactionHash, unshields.eventLogIndex], unshieldsBatch)
   return changes
 }
