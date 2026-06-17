@@ -7,14 +7,17 @@ import crypto from 'crypto'
 import { hexToBytes } from '@railgun-reloaded/bytes'
 
 import type {
-  ChainDB, DBNewCommitment, DBNewNote, DBNewNullifier, DBNewUnshield,
+  DBNewCommitment, DBNewNote, DBNewNullifier, DBNewUnshield,
   DBNewWallet,
-  WalletDB,
 } from '../src/index'
+import type {
+  ChainDB,
+  WalletDB,
+} from '../src/node'
 import {
   createChainDB,
   createWalletDB,
-} from '../src/index'
+} from '../src/node'
 
 enum CommitmentType {
   ShieldCommitment = 0,
