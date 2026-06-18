@@ -1,7 +1,7 @@
 import assert from 'node:assert'
 import { test } from 'node:test'
 
-import type { DBNewRailgunTransaction } from '../../src/node'
+import type { DBNewRailgunTransaction } from '../../src/node.js'
 import {
   getRailgunTransactionByTxid,
   getRailgunTransactionsByBlockRange,
@@ -11,8 +11,8 @@ import {
   insertRailgunTransactions,
   setTxidSyncCursor,
   updateSyncState
-} from '../../src/node'
-import { createTestChainDB } from '../utils'
+} from '../../src/node.js'
+import { createTestChainDB } from '../utils.js'
 
 /**
  * Build deterministic fixed-length bytes for Railgun transaction fixtures.

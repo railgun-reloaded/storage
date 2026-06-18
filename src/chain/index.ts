@@ -5,6 +5,6 @@
  * Shared across all wallets for a given chain.
  */
 
-export * from './schema'
-export * from './db'
-export * from './queries'
+export * from './schema.js'
+export * from './db.js'
+export * from './queries.js'

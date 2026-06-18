@@ -8,7 +8,7 @@
 import { sql } from 'drizzle-orm'
 import { check, index, integer, primaryKey, sqliteTable } from 'drizzle-orm/sqlite-core'
 
-import { bigint, msgpackBlob, uint8Array } from '../types/custom-types'
+import { bigint, msgpackBlob, uint8Array } from '../types/custom-types.js'
 /**
  * Stores spent nullifiers observed on the chain.
  */

@@ -3,9 +3,9 @@ import path from 'path'
 import type Database from 'better-sqlite3'
 import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3'
 
-import { loadDatabaseRuntime } from '../sqlite-loader'
+import { loadDatabaseRuntime } from '../sqlite-loader.js'
 
-import * as schema from './schema'
+import * as schema from './schema.js'
 
 /**
  * Configuration options for creating a wallet database.
@@ -61,7 +61,7 @@ async function createWalletDB (config: WalletDBConfig): Promise<WalletDB> {
      * the package that includes it as a dependency. This prevents consumers from
      * needing a drizzle/ folder of their own.
      */
-    const migrationFilePath = path.resolve(__dirname, '../../', migrationsFolder ?? DEFAULT_WALLET_MIGRATION_FOLDER)
+    const migrationFilePath = path.resolve(import.meta.dirname, '../../', migrationsFolder ?? DEFAULT_WALLET_MIGRATION_FOLDER)
     try {
       migrate(db, { migrationsFolder: migrationFilePath })
       if (verbose) {

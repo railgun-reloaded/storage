@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict'
+import { createRequire } from 'node:module'
 import { test } from 'node:test'
 
-import * as node from '../src/node'
+import * as node from '../src/node.js'
+
+const nodeRequire = createRequire(import.meta.url)
 
 test('Node Entry: exposes the database factories', () => {
   assert.equal(typeof node.createChainDB, 'function')
@@ -23,7 +26,7 @@ test('Node Entry: re-exports the schemas and note converter', () => {
 })
 
 test('Node Entry: defers loading the native module until a database is created', () => {
-  const nativeLoaded = Object.keys(require.cache).some((modulePath) =>
+  const nativeLoaded = Object.keys(nodeRequire.cache).some((modulePath) =>
     modulePath.includes('better-sqlite3')
   )
   assert.equal(nativeLoaded, false, 'importing ./node must not load better-sqlite3 eagerly')

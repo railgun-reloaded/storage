@@ -1,6 +1,8 @@
-module.exports = [
+import railgunEslintConfig from '@railgun-reloaded/eslint-config'
+
+export default [
   {
     ignores: ['dist/**', 'drizzle/**', 'config/**']
   },
-  ...require('@railgun-reloaded/eslint-config')(),
+  ...railgunEslintConfig(),
 ]

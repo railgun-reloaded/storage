@@ -1,7 +1,7 @@
 import assert from 'node:assert'
 import { test } from 'node:test'
 
-import type { DBNewNote, DBNewSentCommitment, NoteIdentity } from '../src/wallet/index'
+import type { DBNewNote, DBNewSentCommitment, NoteIdentity } from '../src/wallet/index.js'
 import {
   createWallet,
   deleteWallet,
@@ -23,7 +23,7 @@ import {
   updateNotePoiStatus,
   updateNotePoiStatusBatch,
   updateScanState,
-} from '../src/wallet/index'
+} from '../src/wallet/index.js'
 
 import {
   createTestNote,
@@ -31,7 +31,7 @@ import {
   createTestWalletDB,
   hexToBytes,
   resetTestCounters,
-} from './utils'
+} from './utils.js'
 
 /**
  * Build a note identity (wallet, chain, commitment) from a DB note row for use

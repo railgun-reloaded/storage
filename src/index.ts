@@ -12,6 +12,6 @@
  * ```
  */
 
-export * from './chain/schema'
-export * from './wallet/schema'
-export * from './wallet/note-converter'
+export * from './chain/schema.js'
+export * from './wallet/schema.js'
+export * from './wallet/note-converter.js'

@@ -4,9 +4,9 @@ import path from 'path'
 import type Database from 'better-sqlite3'
 import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3'
 
-import { loadDatabaseRuntime } from '../sqlite-loader'
+import { loadDatabaseRuntime } from '../sqlite-loader.js'
 
-import * as schema from './schema'
+import * as schema from './schema.js'
 
 /**
  * Configuration options for creating a chain database instance.
@@ -64,7 +64,7 @@ async function createChainDB (config: ChainDBConfig): Promise<ChainDB> {
      * folder in our wallet sdk. It automatically migrate it if it is created for the first time
      * or if we explicitly enable migration.
      */
-    migrationFilePath = path.resolve(__dirname, '../../', migrationFilePath)
+    migrationFilePath = path.resolve(import.meta.dirname, '../../', migrationFilePath)
     try {
       migrate(db, { migrationsFolder: migrationFilePath })
       if (verbose) {

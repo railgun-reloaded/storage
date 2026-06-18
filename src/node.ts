@@ -8,5 +8,5 @@
  * runtime.
  */
 
-export * from './chain'
-export * from './wallet'
+export * from './chain/index.js'
+export * from './wallet/index.js'

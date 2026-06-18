@@ -2,6 +2,7 @@
   "name": "@railgun-reloaded/storage",
   "version": "0.0.1",
   "description": "Persistence layer for RAILGUN Reloaded using Drizzle ORM with SQLite",
+  "type": "module",
   "main": "./src/index.js",
   "types": "./src/index.d.ts",
   "exports": {
@@ -15,7 +16,7 @@
     }
   },
   "scripts": {
-    "build": "npm run db:generate && tsc --build",
+    "build": "tsc --build && npm run db:generate",
     "clean": "tsc --build --clean",
     "prepare": "npm run build",
     "lint": "eslint",

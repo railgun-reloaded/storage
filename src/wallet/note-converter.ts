@@ -1,6 +1,6 @@
 import { hexToBytes } from '@railgun-reloaded/bytes'
 
-import type { DBNewNote } from './schema'
+import type { DBNewNote } from './schema.js'
 
 /**
  * Input contract for creating a new note record.

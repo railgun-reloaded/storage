@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict'
+import { createRequire } from 'node:module'
 import { test } from 'node:test'
 
-import * as root from '../src/index'
+import * as root from '../src/index.js'
+
+const nodeRequire = createRequire(import.meta.url)
 
 test('Root Entry: exposes the runtime-agnostic surface', () => {
   assert.ok(root.commitments, 'chain schema table is exported')
@@ -21,7 +24,7 @@ test('Root Entry: does not expose runtime-dependent queries or factories', () =>
 })
 
 test('Root Entry: pulls in no native database module', () => {
-  const nativeLoaded = Object.keys(require.cache).some((modulePath) =>
+  const nativeLoaded = Object.keys(nodeRequire.cache).some((modulePath) =>
     modulePath.includes('better-sqlite3')
   )
   assert.equal(nativeLoaded, false, 'importing the root entry must not load better-sqlite3')

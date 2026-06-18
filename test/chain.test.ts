@@ -1,7 +1,7 @@
 import assert from 'node:assert'
 import { test } from 'node:test'
 
-import type { DBNewRailgunTransaction } from '../src/node'
+import type { DBNewRailgunTransaction } from '../src/node.js'
 import {
   deleteNullifiersFromBlock,
   getAllNullifiers,
@@ -20,7 +20,7 @@ import {
   nullifierExists,
   setMerkleTree,
   updateSyncState
-} from '../src/node'
+} from '../src/node.js'
 
 import {
   createTestChainDB,
@@ -30,7 +30,7 @@ import {
   createTestTransactCommitments,
   createTestUnshields,
   shuffleArray
-} from './utils'
+} from './utils.js'
 
 test('ChainDB: Insert nullifiers', async () => {
   const db = await createTestChainDB()

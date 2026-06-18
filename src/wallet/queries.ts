@@ -1,14 +1,14 @@
 import { and, eq, isNull, sql } from 'drizzle-orm'
 import type { SQLiteTransaction } from 'drizzle-orm/sqlite-core'
 
-import type { WalletDB } from './db'
-import type { DBNewNote, DBNewTxHistory, DBNewWallet } from './schema'
+import type { WalletDB } from './db.js'
+import type { DBNewNote, DBNewTxHistory, DBNewWallet } from './schema.js'
 import {
   notes,
   scanState,
   txHistory,
   wallets
-} from './schema'
+} from './schema.js'
 
 type NoteIdentity = {
   walletId: string

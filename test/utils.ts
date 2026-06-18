@@ -9,15 +9,15 @@ import { hexToBytes } from '@railgun-reloaded/bytes'
 import type {
   DBNewCommitment, DBNewNote, DBNewNullifier, DBNewUnshield,
   DBNewWallet,
-} from '../src/index'
+} from '../src/index.js'
 import type {
   ChainDB,
   WalletDB,
-} from '../src/node'
+} from '../src/node.js'
 import {
   createChainDB,
   createWalletDB,
-} from '../src/node'
+} from '../src/node.js'
 
 enum CommitmentType {
   ShieldCommitment = 0,

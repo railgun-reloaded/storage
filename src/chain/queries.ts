@@ -1,8 +1,8 @@
 import { and, asc, desc, eq, getTableColumns, gte, lte, sql } from 'drizzle-orm'
 import type { SQLiteTransaction } from 'drizzle-orm/sqlite-core'
 
-import type { ChainDB } from './db'
-import type { DBNewCommitment, DBNewMerkleTree, DBNewNullifier, DBNewRailgunTransaction, DBNewUnshield } from './schema'
+import type { ChainDB } from './db.js'
+import type { DBNewCommitment, DBNewMerkleTree, DBNewNullifier, DBNewRailgunTransaction, DBNewUnshield } from './schema.js'
 import {
   commitments,
   merkleTrees,
@@ -10,7 +10,7 @@ import {
   railgunTransactions,
   syncState,
   unshields,
-} from './schema'
+} from './schema.js'
 
 type DBContext = ChainDB | SQLiteTransaction<any, any, any, any>
 
