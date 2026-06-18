@@ -64,10 +64,11 @@ const bigint = customType<{ data: bigint; driverData: string }>({
   },
 })
 /**
- * The builtin blob types work with Buffer object, instead we
- * define a custom uint8Array that handles the buffer to uint8Array conversion
+ * Stores binary values as SQLite BLOBs using plain Uint8Array on both sides.
+ * The underlying driver returns binary reads as a Uint8Array, which we
+ * normalize so consumers always receive a plain Uint8Array.
  */
-const uint8Array = customType<{ data: Uint8Array; driverData: Buffer }>({
+const uint8Array = customType<{ data: Uint8Array; driverData: Uint8Array }>({
   /**
    * Define the underling database column as text
    * @returns - SQLite text type in string format
@@ -76,26 +77,27 @@ const uint8Array = customType<{ data: Uint8Array; driverData: Buffer }>({
     return 'blob'
   },
   /**
-   * Convert Uint8Array to a Buffer.
-   * @param value - Input Uint8Array to convert.
-   * @returns Buffer representation of the value.
+   * Pass the Uint8Array through to the driver unchanged.
+   * @param value - Input Uint8Array to store.
+   * @returns The value to bind to the BLOB column.
    */
-  toDriver (value: Uint8Array): Buffer {
-    return Buffer.from(value)
+  toDriver (value: Uint8Array): Uint8Array {
+    return value
   },
   /**
-   * Convert Buffer back to a JavaScript Uint8Array.
-   * @param value - Buffer retrieved from the SQLite table.
+   * Normalize a binary read back to a plain Uint8Array.
+   * @param value - Binary value retrieved from the SQLite table.
    * @returns Deserialized Uint8Array.
    */
-  fromDriver (value: Buffer): Uint8Array {
+  fromDriver (value: Uint8Array): Uint8Array {
     return Uint8Array.from(value)
   },
 })
 
 /**
- * MessagePack decodes nested binary values as Buffer in Node. Convert those
- * back to plain Uint8Array so msgpackBlob columns match uint8Array columns.
+ * MessagePack decodes nested binary values as a driver-native binary type.
+ * Convert those back to plain Uint8Array so msgpackBlob columns match
+ * uint8Array columns.
  * @param value - Decoded MessagePack value.
  * @returns The decoded value with binary leaves normalized.
  */
@@ -117,7 +119,7 @@ function normalizeMsgpackBinary (value: unknown): unknown {
   return value
 }
 
-const msgpackBlob = customType<{ data: any; driverData: Buffer }>({
+const msgpackBlob = customType<{ data: any; driverData: Uint8Array }>({
 /**
  * Defines the underlying database column type as a BLOB.
  * @returns - SQLite blob type in string format.
@@ -127,19 +129,19 @@ const msgpackBlob = customType<{ data: any; driverData: Buffer }>({
   },
 
   /**
-   * Converts javascript value to a MessagePack-encoded Buffer.
+   * Converts a JavaScript value to MessagePack-encoded binary data.
    * @param value - Input application side value to serialize.
    * @returns - The serialized MessagePack binary data.
    */
-  toDriver (value: any) {
-    return Buffer.from(encode(value, { extensionCodec }))
+  toDriver (value: any): Uint8Array {
+    return encode(value, { extensionCodec })
   },
   /**
    * Converts the database BLOB back into its original JavaScript value.
-   * @param value - The Buffer retrieved from the SQLite BLOB column.
+   * @param value - The binary value retrieved from the SQLite BLOB column.
    * @returns - The deserialized JavaScript object or value.
    */
-  fromDriver (value: Buffer) {
+  fromDriver (value: Uint8Array) {
     return normalizeMsgpackBinary(decode(value, { extensionCodec }))
   }
 })

@@ -4,6 +4,23 @@ Persistence layer for RAILGUN Reloaded using Drizzle ORM with SQLite (better-sql
 
 All public storage/database operations are asynchronous and return a `Promise`, so the same API shape works on runtimes where storage is async-only.
 
+## Entry Points
+
+The package is split into two entry points along its runtime boundary:
+
+- **`@railgun-reloaded/storage`** — the runtime-agnostic surface: the chain and wallet schemas, their inferred types, and the note converter. It carries no native database dependency.
+- **`@railgun-reloaded/storage/node`** — the complete Node surface. It re-exports everything from the root entry and adds the runtime-dependent queries and the `better-sqlite3`-backed database factories.
+
+`better-sqlite3` is an optional dependency. The `./node` entry loads it lazily, so importing the entry does not require the native module to be present — only creating a database does. If `better-sqlite3` is unavailable, the factories throw a clear error.
+
+```typescript
+// Node consumers: import the database factories and queries from ./node
+import { createChainDB, getUnspentNotes } from '@railgun-reloaded/storage/node';
+
+// Schema-only / type-only consumers: import from the root entry
+import type { DBNewNote } from '@railgun-reloaded/storage';
+```
+
 ## Overview
 
 RAILGUN Reloaded uses a **two-database architecture** for optimal performance and data separation:
@@ -33,7 +50,7 @@ npm install @railgun-reloaded/storage
 ### Chain Database
 
 ```typescript
-import { createChainDB, insertNullifiersBatch, nullifierExists } from '@railgun-reloaded/storage';
+import { createChainDB, insertNullifiersBatch, nullifierExists } from '@railgun-reloaded/storage/node';
 
 // Create chain database (shared across wallets)
 const chainDb = await createChainDB({
@@ -65,7 +82,7 @@ import {
   createWallet,
   insertNote,
   getUnspentNotes,
-} from '@railgun-reloaded/storage';
+} from '@railgun-reloaded/storage/node';
 
 // Create wallet database
 const walletDb = await createWalletDB({
@@ -425,7 +442,7 @@ type DBTxHistory = {
 ### Handling Reorgs
 
 ```typescript
-import { deleteNullifiersFromBlock, deleteCommitmentsFromBlock } from '@railgun-reloaded/storage';
+import { deleteNullifiersFromBlock, deleteCommitmentsFromBlock } from '@railgun-reloaded/storage/node';
 
 async function handleReorg(chainDb: ChainDB, reorgBlock: bigint) {
   // Delete all data from the reorged block onwards
@@ -442,7 +459,7 @@ async function handleReorg(chainDb: ChainDB, reorgBlock: bigint) {
 ### Batch Operations for Sync
 
 ```typescript
-import { insertScanBatch } from '@railgun-reloaded/storage';
+import { insertScanBatch } from '@railgun-reloaded/storage/node';
 
 async function syncBlock(chainDb: ChainDB, blockNumber: bigint) {
   // Fetch data from blockchain
@@ -464,7 +481,7 @@ async function syncBlock(chainDb: ChainDB, blockNumber: bigint) {
 Balances are not cached in the database — they are computed from unspent notes.
 
 ```typescript
-import { getUnspentNotesByToken } from '@railgun-reloaded/storage';
+import { getUnspentNotesByToken } from '@railgun-reloaded/storage/node';
 
 async function getWalletBalance(walletDb: WalletDB, walletId: string, chainId: number, token: string) {
   const unspentNotes = await getUnspentNotesByToken(walletDb, walletId, chainId, token);
@@ -475,7 +492,7 @@ async function getWalletBalance(walletDb: WalletDB, walletId: string, chainId: n
 ### Multi-Wallet Scanning
 
 ```typescript
-import { getCommitmentsByBlockRange, getScanState, insertNotesBatch, listWallets, updateScanState } from '@railgun-reloaded/storage';
+import { getCommitmentsByBlockRange, getScanState, insertNotesBatch, listWallets, updateScanState } from '@railgun-reloaded/storage/node';
 
 async function scanWallets(chainDb: ChainDB, walletDb: WalletDB, chainId: number) {
   const wallets = await listWallets(walletDb);
@@ -520,7 +537,7 @@ async function scanWallets(chainDb: ChainDB, walletDb: WalletDB, chainId: number
 ### Optimization
 
 ```typescript
-import { optimizeChainDB, optimizeWalletDB } from '@railgun-reloaded/storage';
+import { optimizeChainDB, optimizeWalletDB } from '@railgun-reloaded/storage/node';
 
 // Run periodically (e.g., after bulk imports)
 await optimizeChainDB(chainDb, false); // ANALYZE only
@@ -578,7 +595,7 @@ Tests run against in-memory databases (`path: ':memory:'`) via the factories in 
 
 ### Key Decisions
 - **BigInt as TEXT**: Human-readable, arbitrary precision
-- **Blobs as Buffer**: Efficient binary storage for hashes
+- **Blobs as Uint8Array**: Efficient binary storage for hashes, with no Node `Buffer` dependency
 - **Composite PKs**: Unique constraints on multi-column keys
 - **Two Configs**: Separate migration paths for chain/wallet
 

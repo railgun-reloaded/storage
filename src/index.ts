@@ -1,20 +1,17 @@
 /**
- * railgun-reloaded/storage - Platform-neutral persistence surface.
+ * railgun-reloaded/storage - Runtime-agnostic persistence surface.
  *
- * This root entry exposes the shared, runtime-agnostic surface: schemas,
- * queries, and the note converter. It deliberately does not reach the
- * `better-sqlite3` factory implementation, so it is safe to import from
- * browser and React Native bundles. The Node SQLite factory lives behind the
- * `./node` subpath.
+ * This root entry exposes only the static, driver-independent surface: the
+ * chain and wallet schemas, their types, and the note converter. It carries no
+ * native database dependency. The Node SQLite factory and the runtime-dependent
+ * queries live behind the `./node` subpath.
  * @example
  * ```typescript
- * import { getUnspentNotes } from '@railgun-reloaded/storage';
- * import { createWalletDB } from '@railgun-reloaded/storage/node';
+ * import type { DBNewNote } from '@railgun-reloaded/storage';
+ * import { createWalletDB, getUnspentNotes } from '@railgun-reloaded/storage/node';
  * ```
  */
 
 export * from './chain/schema'
-export * from './chain/queries'
 export * from './wallet/schema'
-export * from './wallet/queries'
 export * from './wallet/note-converter'

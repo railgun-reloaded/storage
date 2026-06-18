@@ -1,10 +1,10 @@
 import fs from 'fs'
 import path from 'path'
 
-import Database from 'better-sqlite3'
+import type Database from 'better-sqlite3'
 import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3'
-import { drizzle } from 'drizzle-orm/better-sqlite3'
-import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
+
+import { loadDatabaseRuntime } from '../sqlite-loader'
 
 import * as schema from './schema'
 
@@ -43,7 +43,8 @@ async function createChainDB (config: ChainDBConfig): Promise<ChainDB> {
     dbExists = fs.existsSync(fullPath)
   }
 
-  const sqlite = new Database(dbPath, {
+  const { Database: SqliteDatabase, drizzle, migrate } = await loadDatabaseRuntime()
+  const sqlite = new SqliteDatabase(dbPath, {
     verbose: verbose ? console.log : undefined,
   })
 
