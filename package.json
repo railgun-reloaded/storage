@@ -23,14 +23,11 @@
     "lint:fix": "eslint --fix",
     "pretest": "npm run build",
     "test": "node --test --enable-source-maps \"test/**/*.test.js\"",
-    "db:generate:chain": "drizzle-kit generate --config=config/drizzle.chain.config.ts",
-    "db:generate:wallet": "drizzle-kit generate --config=config/drizzle.wallet.config.ts",
+    "db:generate:chain": "tsc --build && drizzle-kit generate --config=config/drizzle.chain.config.ts",
+    "db:generate:wallet": "tsc --build && drizzle-kit generate --config=config/drizzle.wallet.config.ts",
     "db:generate": "npm run db:generate:chain && npm run db:generate:wallet",
-    "db:studio:chain": "drizzle-kit studio --config=config/drizzle.chain.config.ts",
-    "db:studio:wallet": "drizzle-kit studio --config=config/drizzle.wallet.config.ts"
-  },
-  "bin": {
-    "db-generate-chain": "./bin/bin.js"
+    "db:studio:chain": "tsc --build && drizzle-kit studio --config=config/drizzle.chain.config.ts",
+    "db:studio:wallet": "tsc --build && drizzle-kit studio --config=config/drizzle.wallet.config.ts"
   },
   "keywords": [
     "railgun",
