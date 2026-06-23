@@ -14,7 +14,7 @@ import {
   recordSnapshotCheckpoint,
   recoverChainBootstrap,
   updateSyncState
-} from '../../src'
+} from '../../src/node.js'
 
 const CHAIN_ID = 11155111
 const BLOCK_HEIGHT = 6_000_000n
