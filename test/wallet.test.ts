@@ -5,7 +5,9 @@ import type { DBNewNote, DBNewSentCommitment, NoteIdentity } from '../src/wallet
 import {
   createWallet,
   deleteWallet,
+  getAllNotes,
   getNoteByCommitment,
+  getNotesNeedingPoiRefresh,
   getScanState,
   getTxHistory,
   getUnspentNotes,
@@ -463,6 +465,74 @@ test('Wallet Database - Notes: batch POI status update persists all rows', async
   assert.equal(updated, 2)
   assert.deepEqual((await getNoteByCommitment(db, noteIdentity(noteA)))?.blindedCommitment, blindedA)
   assert.deepEqual((await getNoteByCommitment(db, noteIdentity(noteB)))?.blindedCommitment, blindedB)
+})
+
+test('Wallet Database - Notes: PPOI refresh query returns pending and non-Valid statuses', async () => {
+  resetTestCounters()
+  const db = await createTestWalletDB()
+  const wallet = createTestWallet()
+  const requiredListKeys = ['required-a', 'required-b']
+  const pending = createTestNote({ walletId: wallet.id, chainId: 1, poisPerList: null })
+  const missing = createTestNote({
+    walletId: wallet.id,
+    chainId: 1,
+    poisPerList: { 'required-a': 'Missing', 'required-b': 'Valid' },
+  })
+  const shieldBlocked = createTestNote({
+    walletId: wallet.id,
+    chainId: 1,
+    poisPerList: { 'required-a': 'Valid', 'required-b': 'ShieldBlocked' },
+  })
+  const proofSubmitted = createTestNote({
+    walletId: wallet.id,
+    chainId: 1,
+    poisPerList: { 'required-a': 'ProofSubmitted', 'required-b': 'Valid' },
+  })
+  const missingRequiredKey = createTestNote({
+    walletId: wallet.id,
+    chainId: 1,
+    poisPerList: { 'required-a': 'Valid' },
+  })
+  const allValid = createTestNote({
+    walletId: wallet.id,
+    chainId: 1,
+    poisPerList: { 'required-a': 'Valid', 'required-b': 'Valid' },
+  })
+
+  await createWallet(db, wallet)
+  assert.equal(await insertNotesBatch(db, [
+    pending,
+    missing,
+    shieldBlocked,
+    proofSubmitted,
+    missingRequiredKey,
+    allValid,
+  ]), 6)
+
+  const candidates = await getNotesNeedingPoiRefresh(db, wallet.id, 1, requiredListKeys)
+  const expected = [
+    pending,
+    missing,
+    shieldBlocked,
+    proofSubmitted,
+    missingRequiredKey,
+  ].map((note) => Buffer.from(note.commitment).toString('hex')).sort()
+  const exactFilter = (await getAllNotes(db, wallet.id, 1))
+    .filter((note) => (
+      note.poisPerList == null ||
+      requiredListKeys.some((listKey) => (
+        (note.poisPerList as Record<string, string | undefined>)[listKey] !== 'Valid'
+      ))
+    ))
+    .map((note) => Buffer.from(note.commitment).toString('hex'))
+    .sort()
+  const candidateKeys = candidates
+    .map((note) => Buffer.from(note.commitment).toString('hex'))
+    .sort()
+
+  assert.deepEqual(candidateKeys, expected)
+  assert.deepEqual(candidateKeys, exactFilter)
+  assert.equal(candidateKeys.includes(Buffer.from(allValid.commitment).toString('hex')), false)
 })
 
 test('Wallet Database - Stats: return correct counts', async () => {

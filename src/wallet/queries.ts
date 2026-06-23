@@ -1,8 +1,9 @@
-import { and, eq, isNull, sql } from 'drizzle-orm'
+import { encode } from '@msgpack/msgpack'
+import { and, eq, isNull, or, sql } from 'drizzle-orm'
 import type { SQLiteTransaction } from 'drizzle-orm/sqlite-core'
 
 import type { WalletDB } from './db.js'
-import type { DBNewNote, DBNewTxHistory, DBNewWallet } from './schema.js'
+import type { DBNewNote, DBNewTxHistory, DBNewWallet, DBNote } from './schema.js'
 import {
   notes,
   scanState,
@@ -28,6 +29,13 @@ type NotePoiStatusUpdate = NoteIdentity & {
 }
 
 type DBContext = WalletDB | SQLiteTransaction<any, any, any, any>
+
+const POI_STATUS_VALID = 'Valid'
+const POI_STATUS_NON_VALID_MARKERS = [
+  'Missing',
+  'ShieldBlocked',
+  'ProofSubmitted',
+] as const
 
 /**
  * Canonical form for ERC-20 token addresses stored in or queried against the
@@ -69,6 +77,61 @@ function noteNullifierIdentityWhere (identity: NoteNullifierIdentity) {
     eq(notes.nullifier, identity.nullifier),
     eq(notes.treeNumber, identity.treeNumber)
   )
+}
+
+/**
+ * Encode a string exactly as it appears inside the msgpack `poisPerList` blob.
+ * @param value - String key or status value to search for.
+ * @returns Msgpack-encoded string bytes.
+ */
+function msgpackString (value: string): Buffer {
+  return Buffer.from(encode(value))
+}
+
+/**
+ * Build a coarse SQL predicate for rows that may need a PPOI refresh.
+ * SQLite cannot express exact key/value checks inside the msgpack blob, so this
+ * predicate selects a cheap superset: pending rows, rows containing a known
+ * non-Valid status marker, or rows missing any required list key token.
+ * @param requiredListKeys - PPOI list keys that must all be `Valid`.
+ * @returns SQL predicate selecting possible refresh candidates.
+ */
+function poiRefreshCandidateWhere (requiredListKeys: readonly string[]) {
+  const predicates = [isNull(notes.poisPerList)]
+
+  if (requiredListKeys.length > 0) {
+    predicates.push(
+      ...POI_STATUS_NON_VALID_MARKERS.map((status) => (
+        sql`instr(${notes.poisPerList}, ${msgpackString(status)}) > 0`
+      )),
+      ...requiredListKeys.map((key) => (
+        sql`instr(${notes.poisPerList}, ${msgpackString(key)}) = 0`
+      ))
+    )
+  }
+
+  return or(...predicates)
+}
+
+/**
+ * Decide whether a decoded note row needs an exact PPOI refresh.
+ * @param note - Stored note row.
+ * @param requiredListKeys - PPOI list keys that must all be `Valid`.
+ * @returns True when status is absent or any required list is not `Valid`.
+ */
+function shouldRefreshPoiStatus (
+  note: Pick<DBNote, 'poisPerList'>,
+  requiredListKeys: readonly string[]
+): boolean {
+  if (note.poisPerList == null) {
+    return true
+  }
+  if (requiredListKeys.length === 0) {
+    return false
+  }
+
+  const poisPerList = note.poisPerList as Record<string, string | undefined>
+  return requiredListKeys.some((key) => poisPerList[key] !== POI_STATUS_VALID)
 }
 
 /**
@@ -315,28 +378,38 @@ async function getAllNotes (db: WalletDB, walletId: string, chainId: number) {
 }
 
 /**
- * Return received notes whose PPOI status has not been persisted yet.
+ * Return notes whose persisted PPOI status needs another refresh.
+ *
+ * The SQL predicate is a cheap msgpack-byte prefilter for rows that are pending,
+ * contain a known non-Valid PPOI status, or are missing a required list key.
+ * Because `poisPerList` is msgpack-encoded, the final required-list check is
+ * refined after decoding so callers receive only notes with no status or at
+ * least one required list whose status is not `Valid`.
  * @param db - Wallet database instance.
  * @param walletId - Identifier of the wallet.
  * @param chainId - Chain identifier.
- * @returns Notes with `poisPerList IS NULL`.
+ * @param requiredListKeys - PPOI list keys that must all be `Valid`.
+ * @returns Notes with no PPOI status or a non-Valid required-list status.
  */
 async function getNotesNeedingPoiRefresh (
   db: WalletDB,
   walletId: string,
-  chainId: number
+  chainId: number,
+  requiredListKeys: readonly string[] = []
 ) {
-  return db
+  const candidates = await db
     .select()
     .from(notes)
     .where(
       and(
         eq(notes.walletId, walletId),
         eq(notes.chainId, chainId),
-        isNull(notes.poisPerList)
+        poiRefreshCandidateWhere(requiredListKeys)
       )
     )
     .all()
+
+  return candidates.filter((note) => shouldRefreshPoiStatus(note, requiredListKeys))
 }
 
 /**

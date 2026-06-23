@@ -313,7 +313,7 @@ markNoteSpent(db: WalletDB, identity: NoteIdentity, spentTxid: Uint8Array): Prom
 markNotesSpentBatch(db: WalletDB, identities: NoteIdentity[], spentTxid: Uint8Array): Promise<number>
 
 // PPOI status
-getNotesNeedingPoiRefresh(db: WalletDB, walletId: string, chainId: number): Promise<DBNote[]>
+getNotesNeedingPoiRefresh(db: WalletDB, walletId: string, chainId: number, requiredListKeys?: readonly string[]): Promise<DBNote[]>
 updateNotePoiStatus(db: WalletDB, identity: NoteIdentity, blindedCommitment: Uint8Array, poisPerList: Record<string, string> | null): Promise<number>
 updateNotePoiStatusBatch(db: WalletDB, updates: NotePoiStatusUpdate[]): Promise<number>
 ```
