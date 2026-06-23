@@ -2,12 +2,21 @@ import { and, asc, desc, eq, getTableColumns, gte, lte, sql } from 'drizzle-orm'
 import type { SQLiteTransaction } from 'drizzle-orm/sqlite-core'
 
 import type { ChainDB } from './db.js'
-import type { DBNewCommitment, DBNewMerkleTree, DBNewNullifier, DBNewRailgunTransaction, DBNewUnshield } from './schema.js'
+import type {
+  DBNewCommitment,
+  DBNewMerkleTree,
+  DBNewNullifier,
+  DBNewRailgunTransaction,
+  DBNewSnapshotCheckpoint,
+  DBNewUnshield,
+  SnapshotCheckpointTree
+} from './schema.js'
 import {
   commitments,
   merkleTrees,
   nullifiers,
   railgunTransactions,
+  snapshotCheckpoints,
   syncState,
   unshields,
 } from './schema.js'
@@ -364,6 +373,67 @@ async function updateSyncState (
 }
 
 /**
+ * Read the validated snapshot checkpoint promoted with a chain database.
+ * @param db - Chain database instance.
+ * @param chainID - Chain identifier.
+ * @returns Validated checkpoint row, when one exists.
+ */
+async function getSnapshotCheckpoint (db: ChainDB, chainID: number) {
+  return db
+    .select()
+    .from(snapshotCheckpoints)
+    .where(eq(snapshotCheckpoints.chainID, chainID))
+    .get()
+}
+
+/**
+ * Record a validated checkpoint in the staged chain database. The checkpoint
+ * and scan cursor are checked in one transaction so a database cannot be
+ * promoted with a checkpoint that claims coverage beyond its persisted state.
+ * @param db - Staged chain database.
+ * @param checkpoint - Validated checkpoint metadata.
+ * @param checkpoint.chainID - Chain identifier.
+ * @param checkpoint.cid - Content identifier of the validated artifact.
+ * @param checkpoint.blockHeight - Exact validated snapshot end height.
+ * @param checkpoint.trees - Validated commitment-tree states.
+ * @param checkpoint.validatedAt - Optional validation timestamp in milliseconds.
+ */
+async function recordSnapshotCheckpoint (
+  db: ChainDB,
+  checkpoint: {
+    chainID: number
+    cid: string
+    blockHeight: bigint
+    trees: SnapshotCheckpointTree[]
+    validatedAt?: number
+  }
+): Promise<void> {
+  db.transaction((tx) => {
+    const state = tx
+      .select()
+      .from(syncState)
+      .where(eq(syncState.chainID, checkpoint.chainID))
+      .get()
+
+    if (state?.lastBlockHeight !== checkpoint.blockHeight) {
+      throw new Error(
+        `Cannot record snapshot checkpoint at ${checkpoint.blockHeight}: ` +
+        `persisted sync cursor is ${state?.lastBlockHeight ?? 'missing'}`
+      )
+    }
+
+    const row: DBNewSnapshotCheckpoint = {
+      chainID: checkpoint.chainID,
+      cid: checkpoint.cid,
+      blockHeight: checkpoint.blockHeight,
+      trees: checkpoint.trees,
+      validatedAt: checkpoint.validatedAt ?? Date.now()
+    }
+    upsertRow(tx, snapshotCheckpoints, snapshotCheckpoints.chainID, row)
+  })
+}
+
+/**
  * Read the independent Railgun TXID sync cursor for a chain.
  * @param db - Chain database instance.
  * @param chainID - Identifier of the chain.
@@ -659,6 +729,8 @@ export {
   setMerkleTree,
   getSyncState,
   updateSyncState,
+  getSnapshotCheckpoint,
+  recordSnapshotCheckpoint,
   getTxidSyncCursor,
   setTxidSyncCursor,
   insertRailgunTransactions,

@@ -6,7 +6,7 @@
  * provided to handle bigint and msgpack serialization.
  */
 import { sql } from 'drizzle-orm'
-import { check, index, integer, primaryKey, sqliteTable } from 'drizzle-orm/sqlite-core'
+import { check, index, integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
 import { bigint, msgpackBlob, uint8Array } from '../types/custom-types.js'
 /**
@@ -84,6 +84,28 @@ const syncState = sqliteTable(
     lastTxidSyncBlockHeight: bigint('last_txid_sync_block_height')
       .notNull()
       .default(sql.raw(`'${'0'.repeat(64)}'`)),
+  }
+)
+
+type SnapshotCheckpointTree = {
+  treeNumber: number
+  leafCount: number
+  root: Uint8Array
+}
+
+/**
+ * Records a snapshot checkpoint only after its staged chain database has
+ * passed external chain validation. The row travels with the staged database
+ * when that database is promoted into the trusted chain.db location.
+ */
+const snapshotCheckpoints = sqliteTable(
+  'snapshot_checkpoints',
+  {
+    chainID: integer('chain_id').primaryKey().notNull(),
+    cid: text('cid').notNull(),
+    blockHeight: bigint('block_height').notNull(),
+    trees: msgpackBlob('trees').notNull(),
+    validatedAt: integer('validated_at').notNull()
   }
 )
 
@@ -166,6 +188,8 @@ type DBCommitment = typeof commitments.$inferSelect
 type DBNewCommitment = typeof commitments.$inferInsert
 type DBRailgunTransaction = typeof railgunTransactions.$inferSelect
 type DBNewRailgunTransaction = typeof railgunTransactions.$inferInsert
+type DBSnapshotCheckpoint = typeof snapshotCheckpoints.$inferSelect
+type DBNewSnapshotCheckpoint = typeof snapshotCheckpoints.$inferInsert
 
 export type {
   DBNullifier,
@@ -178,6 +202,18 @@ export type {
   DBNewCommitment,
   DBRailgunTransaction,
   DBNewRailgunTransaction,
+  DBSnapshotCheckpoint,
+  DBNewSnapshotCheckpoint,
+  SnapshotCheckpointTree,
 }
 
-export { commitments, nullifiers, merkleTrees, unshields, syncState, railgunTransactions, bigint }
+export {
+  commitments,
+  nullifiers,
+  merkleTrees,
+  unshields,
+  syncState,
+  snapshotCheckpoints,
+  railgunTransactions,
+  bigint
+}
