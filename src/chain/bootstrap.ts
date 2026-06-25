@@ -1,8 +1,11 @@
 import fs from 'fs'
 import path from 'path'
 
+import { gt } from 'drizzle-orm'
+
 import { closeChainDB, createChainDB } from './db.js'
 import { getSnapshotCheckpoint } from './queries.js'
+import { syncState } from './schema.js'
 
 const CHAIN_BOOTSTRAP_MARKER_VERSION = 1
 
@@ -67,6 +70,33 @@ function readMarker (markerPath: string): ChainBootstrapMarker {
 }
 
 /**
+ * Determine whether the target already holds trusted sync state. Bootstrap is
+ * cold-start-only, so a target that has advanced its sync cursor must never be
+ * overwritten by a staging attempt. The target is inspected without applying
+ * migrations; an unreadable or schemaless file is treated as untrusted.
+ * @param targetPath - Final chain.db path.
+ * @returns `true` when the target carries a non-zero synced cursor.
+ */
+async function targetHasTrustedState (targetPath: string): Promise<boolean> {
+  if (!fs.existsSync(targetPath)) {
+    return false
+  }
+  const targetDB = await createChainDB({ path: targetPath, runMigrations: false })
+  try {
+    const synced = targetDB
+      .select()
+      .from(syncState)
+      .where(gt(syncState.lastBlockHeight, 0n))
+      .get()
+    return synced !== undefined
+  } catch {
+    return false
+  } finally {
+    await closeChainDB(targetDB)
+  }
+}
+
+/**
  * Recover from an interrupted bootstrap. A final database carrying the marker's
  * validated checkpoint is preserved; every other marked staging attempt is
  * discarded.
@@ -85,9 +115,17 @@ async function recoverChainBootstrap (
     return 'none'
   }
 
-  const marker = readMarker(paths.markerPath)
+  let marker: ChainBootstrapMarker
+  try {
+    marker = readMarker(paths.markerPath)
+  } catch {
+    removeSQLiteFiles(paths.stagingPath)
+    fs.rmSync(paths.markerPath, { force: true })
+    return 'discarded'
+  }
+
   if (fs.existsSync(paths.targetPath)) {
-    const targetDB = await createChainDB({ path: paths.targetPath, runMigrations: true })
+    const targetDB = await createChainDB({ path: paths.targetPath, runMigrations: false })
     try {
       const checkpoint = await getSnapshotCheckpoint(targetDB, marker.chainID)
       if (
@@ -109,8 +147,9 @@ async function recoverChainBootstrap (
 }
 
 /**
- * Start a disposable bootstrap attempt. The caller must first establish that
- * the existing target has no trusted sync state.
+ * Start a disposable bootstrap attempt. Bootstrap is cold-start-only: the call
+ * throws when the target already holds trusted sync state rather than
+ * overwriting it.
  * @param targetPath - Final chain.db path.
  * @param marker - Snapshot identity and exact checkpoint height.
  * @returns Paths for the attempt.
@@ -123,6 +162,9 @@ async function prepareChainBootstrap (
 ): Promise<ChainBootstrapPaths> {
   await recoverChainBootstrap(targetPath)
   const paths = getChainBootstrapPaths(targetPath)
+  if (await targetHasTrustedState(paths.targetPath)) {
+    throw new Error('Cannot bootstrap over a chain database with trusted sync state')
+  }
   fs.mkdirSync(path.dirname(paths.targetPath), { recursive: true })
   removeSQLiteFiles(paths.targetPath)
   removeSQLiteFiles(paths.stagingPath)
