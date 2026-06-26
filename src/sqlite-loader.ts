@@ -20,7 +20,7 @@ let cached: DatabaseRuntime | undefined
 /**
  * Lazily load the Node-only database runtime.
  *
- * `better-sqlite3` is declared as an optional dependency, and the drizzle
+ * `better-sqlite3` is declared as an optional peer dependency, and the drizzle
  * `better-sqlite3` adapter pulls the native module in eagerly when imported.
  * Deferring both imports until a database is actually created keeps the `./node`
  * entry importable in environments where the native module is unavailable; only
@@ -45,7 +45,7 @@ async function loadDatabaseRuntime (): Promise<DatabaseRuntime> {
     return cached
   } catch (error) {
     throw new Error(
-      "The optional dependency 'better-sqlite3' is required to create a database. Install it to use the Node storage entry.",
+      "The optional peer dependency 'better-sqlite3' is required to create a database. Install it to use the Node storage entry.",
       { cause: error }
     )
   }

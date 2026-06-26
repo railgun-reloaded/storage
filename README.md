@@ -11,7 +11,7 @@ The package is split into two entry points along its runtime boundary:
 - **`@railgun-reloaded/storage`** — the runtime-agnostic surface: the chain and wallet schemas, their inferred types, and the note converter. It carries no native database dependency.
 - **`@railgun-reloaded/storage/node`** — the complete Node surface. It re-exports everything from the root entry and adds the runtime-dependent queries and the `better-sqlite3`-backed database factories.
 
-`better-sqlite3` is an optional dependency. The `./node` entry loads it lazily, so importing the entry does not require the native module to be present — only creating a database does. If `better-sqlite3` is unavailable, the factories throw a clear error.
+`better-sqlite3` is an **optional peer dependency** used only by the `./node` entry, so the root entry installs and imports in a browser toolchain with no native driver, no `Buffer` global, and no polyfills. Node consumers install `better-sqlite3` themselves; the `./node` entry loads it lazily — importing the entry does not require the native module, only creating a database does — and the factories throw a clear error naming the missing peer when it is absent.
 
 ```typescript
 // Node consumers: import the database factories and queries from ./node
@@ -42,7 +42,11 @@ RAILGUN Reloaded uses a **two-database architecture** for optimal performance an
 ## Installation
 
 ```bash
+# Browser / schema-only consumers — no native driver required
 npm install @railgun-reloaded/storage
+
+# Node consumers — also install the native driver for the ./node entry
+npm install @railgun-reloaded/storage better-sqlite3
 ```
 
 ## Quick Start

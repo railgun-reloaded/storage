@@ -22,5 +22,8 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      - name: Validate package
+        run: npm run check:package
+
       - name: Test
         run: npm run test

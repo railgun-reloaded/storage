@@ -15,12 +15,19 @@
       "default": "./src/node.js"
     }
   },
+  "files": [
+    "src/**/*.js",
+    "src/**/*.d.ts",
+    "drizzle/**/*.sql",
+    "drizzle/**/*.json"
+  ],
   "scripts": {
     "build": "tsc --build && npm run db:generate",
     "clean": "tsc --build --clean",
     "prepare": "npm run build",
     "lint": "eslint",
     "lint:fix": "eslint --fix",
+    "check:package": "publint",
     "pretest": "npm run build",
     "test": "node --test --enable-source-maps \"test/**/*.test.js\"",
     "db:generate:chain": "tsc --build && drizzle-kit generate --config=config/drizzle.chain.config.ts",
@@ -43,14 +50,21 @@
     "@types/better-sqlite3": "^7.6.12",
     "drizzle-orm": "^0.36.4"
   },
-  "optionalDependencies": {
+  "peerDependencies": {
     "better-sqlite3": "^11.8.1"
+  },
+  "peerDependenciesMeta": {
+    "better-sqlite3": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@railgun-reloaded/eslint-config": "^1.1.0",
     "@railgun-reloaded/tsconfig": "^1.2.0",
     "@types/node": "^24.0.3",
+    "better-sqlite3": "^11.8.1",
     "drizzle-kit": "^0.29.1",
+    "publint": "^0.3.21",
     "typescript": "^5.8.3"
   },
   "engines": {
