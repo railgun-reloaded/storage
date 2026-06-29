@@ -5,14 +5,13 @@ import {
   createWallet,
   getNoteByNullifier,
   insertNotesBatch
-} from '../src/wallet/index.js'
-
+} from '../../src/wallet/index.js'
 import {
   createTestNote,
   createTestWallet,
   createTestWalletDB,
   resetTestCounters
-} from './utils.js'
+} from '../utils.js'
 
 test('notes table allows same nullifier bytes when tree_id differs', async () => {
   resetTestCounters()

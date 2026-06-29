@@ -123,6 +123,18 @@ function runWalletStorageContract (name: string, makeHarness: WalletHarnessFacto
       assert.equal(updated, 1)
     }))
 
+    test('PPOI refresh gates on required list keys', withWallet(async ({ storage }) => {
+      const valid = createTestNote({ walletId: WALLET_ID })
+      const missing = createTestNote({ walletId: WALLET_ID })
+      await storage.insertNotesBatch([valid, missing])
+      await storage.updateNotePoiStatus({ walletId: WALLET_ID, chainId: 1, commitment: valid.commitment }, randomBytes(32), { listA: 'Valid' })
+      await storage.updateNotePoiStatus({ walletId: WALLET_ID, chainId: 1, commitment: missing.commitment }, randomBytes(32), { listA: 'Missing' })
+
+      const needing = await storage.getNotesNeedingPoiRefresh(WALLET_ID, 1, ['listA'])
+      assert.equal(needing.length, 1)
+      assert.deepEqual(needing[0]!.commitment, missing.commitment)
+    }))
+
     test('scan state upserts per wallet/chain', withWallet(async ({ storage }) => {
       assert.equal(await storage.getScanState(WALLET_ID, 1), undefined)
       await storage.updateScanState(WALLET_ID, 1, 250n)

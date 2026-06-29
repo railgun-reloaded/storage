@@ -23,6 +23,13 @@ test('Root Entry: does not expose runtime-dependent queries or factories', () =>
   assert.equal(surface['createWalletDB'], undefined, 'factories live under ./node')
 })
 
+test('Root Entry: does not leak core value helpers', () => {
+  const surface = root as Record<string, unknown>
+  assert.equal(surface['normalizeToken'], undefined, 'core helpers stay internal')
+  assert.equal(surface['isEmptyBatch'], undefined, 'core helpers stay internal')
+  assert.equal(surface['normalizeMutationCount'], undefined, 'core helpers stay internal')
+})
+
 test('Root Entry: pulls in no native database module', () => {
   const nativeLoaded = Object.keys(nodeRequire.cache).some((modulePath) =>
     modulePath.includes('better-sqlite3')

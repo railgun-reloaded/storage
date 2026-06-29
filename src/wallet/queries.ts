@@ -166,7 +166,8 @@ async function insertNote (db: WalletDB, note: DBNewNote): Promise<void> {
 }
 
 /**
- * Batch-insert notes, ignoring conflicts.
+ * Batch-insert notes, normalizing tokens and enriching existing rows with
+ * previously-null optional fields on conflict.
  * @param db - Wallet database instance.
  * @param noteList - Array of notes to insert.
  * @returns Number of rows inserted or updated.

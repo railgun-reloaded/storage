@@ -1,17 +1,16 @@
 import assert from 'node:assert'
 import { test } from 'node:test'
 
-import type { NoteInput } from '../src/wallet/note-converter.js'
-import { toDBNote, toDBNotes } from '../src/wallet/note-converter.js'
-import type { NoteIdentity } from '../src/wallet/queries.js'
+import type { NoteInput } from '../../src/wallet/note-converter.js'
+import { toDBNote, toDBNotes } from '../../src/wallet/note-converter.js'
+import type { NoteIdentity } from '../../src/wallet/queries.js'
 import {
   createWallet,
   getNoteByCommitment,
   insertNotesBatch,
-} from '../src/wallet/queries.js'
-import type { DBNewNote } from '../src/wallet/schema.js'
-
-import { createTestWallet, createTestWalletDB } from './utils.js'
+} from '../../src/wallet/queries.js'
+import type { DBNewNote } from '../../src/wallet/schema.js'
+import { createTestWallet, createTestWalletDB } from '../utils.js'
 
 const ERC20_NULL_SUB_ID = `0x${'00'.repeat(32)}`
 

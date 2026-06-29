@@ -13,6 +13,11 @@ test('Node Entry: exposes the database factories', () => {
   assert.equal(typeof node.closeWalletDB, 'function')
 })
 
+test('Node Entry: exposes the storage adapter factories', () => {
+  assert.equal(typeof node.createChainStorage, 'function')
+  assert.equal(typeof node.createWalletStorage, 'function')
+})
+
 test('Node Entry: exposes the runtime-dependent queries', () => {
   assert.equal(typeof node.getUnspentNotes, 'function')
   assert.equal(typeof node.insertScanBatch, 'function')
