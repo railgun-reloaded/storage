@@ -1,6 +1,8 @@
 import { and, asc, desc, eq, getTableColumns, gte, lte, sql } from 'drizzle-orm'
 import type { SQLiteTransaction } from 'drizzle-orm/sqlite-core'
 
+import type { ScanBatch } from '../core/types.js'
+
 import type { ChainDB } from './db.js'
 import type {
   DBNewCommitment,
@@ -22,20 +24,6 @@ import {
 } from './schema.js'
 
 type DBContext = ChainDB | SQLiteTransaction<any, any, any, any>
-
-/**
- * Atomic unit of chain data produced by one scan batch. All members are
- * persisted in a single transaction by `insertScanBatch`.
- */
-type ScanBatch = {
-  chainID: number
-  blockNumber: bigint
-  nullifiers?: DBNewNullifier[]
-  commitments?: DBNewCommitment[]
-  unshields?: DBNewUnshield[]
-  railgunTransactions?: DBNewRailgunTransaction[]
-  merkleTrees?: DBNewMerkleTree[]
-}
 
 /**
  * Insert new entry or update existing entry in the table by overriding it

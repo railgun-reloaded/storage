@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { createRequire } from 'node:module'
 import { test } from 'node:test'
 
-import * as node from '../src/node.js'
+import * as node from '../src/node/index.js'
 
 const nodeRequire = createRequire(import.meta.url)
 

@@ -8,7 +8,7 @@
 import { sql } from 'drizzle-orm'
 import { check, index, integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
-import { bigint, msgpackBlob, uint8Array } from '../types/custom-types.js'
+import { bigint, msgpackBlob, uint8Array } from '../column-types.js'
 /**
  * Stores spent nullifiers observed on the chain.
  */
@@ -188,6 +188,8 @@ type DBCommitment = typeof commitments.$inferSelect
 type DBNewCommitment = typeof commitments.$inferInsert
 type DBRailgunTransaction = typeof railgunTransactions.$inferSelect
 type DBNewRailgunTransaction = typeof railgunTransactions.$inferInsert
+type DBSyncState = typeof syncState.$inferSelect
+type DBNewSyncState = typeof syncState.$inferInsert
 type DBSnapshotCheckpoint = typeof snapshotCheckpoints.$inferSelect
 type DBNewSnapshotCheckpoint = typeof snapshotCheckpoints.$inferInsert
 
@@ -202,6 +204,8 @@ export type {
   DBNewCommitment,
   DBRailgunTransaction,
   DBNewRailgunTransaction,
+  DBSyncState,
+  DBNewSyncState,
   DBSnapshotCheckpoint,
   DBNewSnapshotCheckpoint,
   SnapshotCheckpointTree,

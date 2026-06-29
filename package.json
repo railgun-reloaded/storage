@@ -11,8 +11,8 @@
       "default": "./src/index.js"
     },
     "./node": {
-      "types": "./src/node.d.ts",
-      "default": "./src/node.js"
+      "types": "./src/node/index.d.ts",
+      "default": "./src/node/index.js"
     }
   },
   "files": [

@@ -13,11 +13,11 @@ import type {
 import type {
   ChainDB,
   WalletDB,
-} from '../src/node.js'
+} from '../src/node/index.js'
 import {
   createChainDB,
   createWalletDB,
-} from '../src/node.js'
+} from '../src/node/index.js'
 
 enum CommitmentType {
   ShieldCommitment = 0,

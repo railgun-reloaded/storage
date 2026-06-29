@@ -2,6 +2,9 @@ import { encode } from '@msgpack/msgpack'
 import { and, eq, isNull, or, sql } from 'drizzle-orm'
 import type { SQLiteTransaction } from 'drizzle-orm/sqlite-core'
 
+import { normalizeToken } from '../core/token.js'
+import type { NoteIdentity, NoteNullifierIdentity, NotePoiStatusUpdate } from '../core/types.js'
+
 import type { WalletDB } from './db.js'
 import type { DBNewNote, DBNewTxHistory, DBNewWallet, DBNote } from './schema.js'
 import {
@@ -11,23 +14,6 @@ import {
   wallets
 } from './schema.js'
 
-type NoteIdentity = {
-  walletId: string
-  chainId: number
-  commitment: Uint8Array
-}
-
-type NoteNullifierIdentity = {
-  chainId: number
-  nullifier: Uint8Array
-  treeNumber: number
-}
-
-type NotePoiStatusUpdate = NoteIdentity & {
-  blindedCommitment: Uint8Array
-  poisPerList: Record<string, string> | null
-}
-
 type DBContext = WalletDB | SQLiteTransaction<any, any, any, any>
 
 const POI_STATUS_VALID = 'Valid'
@@ -36,18 +22,6 @@ const POI_STATUS_NON_VALID_MARKERS = [
   'ShieldBlocked',
   'ProofSubmitted',
 ] as const
-
-/**
- * Canonical form for ERC-20 token addresses stored in or queried against the
- * wallet database. All comparisons rely on a single lowercase form so that
- * callers passing mixed-case (e.g. EIP-55 checksummed) addresses do not miss
- * rows written in a different case.
- * @param token - Token address in any case.
- * @returns Lowercase token address.
- */
-function normalizeToken (token: string): string {
-  return token.toLowerCase()
-}
 
 /**
  * Build the `WHERE` clause that uniquely identifies a note by its composite

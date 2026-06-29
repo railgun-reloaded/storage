@@ -7,7 +7,7 @@
 import { sql } from 'drizzle-orm'
 import { index, integer, primaryKey, sqliteTable, text, unique } from 'drizzle-orm/sqlite-core'
 
-import { bigint, msgpackBlob, uint8Array } from '../types/custom-types.js'
+import { bigint, msgpackBlob, uint8Array } from '../column-types.js'
 
 /**
  * Canonical 256-bit null sub-ID for ERC20 notes, expressed as a SQLite blob

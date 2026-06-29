@@ -1,7 +1,7 @@
 import assert from 'node:assert'
 import { test } from 'node:test'
 
-import type { DBNewRailgunTransaction } from '../src/node.js'
+import type { DBNewRailgunTransaction } from '../src/node/index.js'
 import {
   deleteNullifiersFromBlock,
   getAllNullifiers,
@@ -20,7 +20,7 @@ import {
   nullifierExists,
   setMerkleTree,
   updateSyncState
-} from '../src/node.js'
+} from '../src/node/index.js'
 
 import {
   createTestChainDB,
