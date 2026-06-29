@@ -84,8 +84,8 @@ function noteNullifierIdentityWhere (identity: NoteNullifierIdentity) {
  * @param value - String key or status value to search for.
  * @returns Msgpack-encoded string bytes.
  */
-function msgpackString (value: string): Buffer {
-  return Buffer.from(encode(value))
+function msgpackString (value: string): Uint8Array {
+  return Uint8Array.from(encode(value))
 }
 
 /**
