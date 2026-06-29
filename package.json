@@ -28,6 +28,7 @@
     "lint": "eslint",
     "lint:fix": "eslint --fix",
     "check:package": "publint",
+    "check:browser": "esbuild src/index.js --bundle --platform=browser --format=esm --outfile=/dev/null",
     "pretest": "npm run build",
     "test": "node --test --enable-source-maps \"test/**/*.test.js\"",
     "db:generate:chain": "tsc --build && drizzle-kit generate --config=config/drizzle.chain.config.ts",
@@ -64,6 +65,7 @@
     "@types/node": "^24.0.3",
     "better-sqlite3": "^11.8.1",
     "drizzle-kit": "^0.29.1",
+    "esbuild": "^0.28.1",
     "publint": "^0.3.21",
     "typescript": "^5.8.3"
   },

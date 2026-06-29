@@ -19,11 +19,17 @@ jobs:
       - name: Install dependencies
         run: npm install
 
+      - name: Build
+        run: npm run build
+
       - name: Lint
         run: npm run lint
 
       - name: Validate package
         run: npm run check:package
+
+      - name: Resolve browser bundle
+        run: npm run check:browser
 
       - name: Test
         run: npm run test

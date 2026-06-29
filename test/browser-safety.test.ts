@@ -9,9 +9,10 @@ const srcRoot = path.resolve(here, '..', 'src')
 
 /**
  * Collect the static import graph of an ES module by following only relative
- * specifiers, recording every bare (external) specifier encountered. Packaging
- * correctness (exports map, published files) is validated separately by
- * `publint`; this walk guards the browser-safety invariant of the root surface.
+ * specifiers, recording every bare (external) specifier encountered. Used to
+ * scope the no-Buffer check to root-reachable source. Node-module resolution is
+ * verified separately by the browser bundle CI step, and packaging correctness
+ * by `publint`.
  * @param entryFile - Absolute path of the entry module.
  * @returns The set of visited files and the set of external specifiers.
  */
@@ -47,25 +48,6 @@ function importGraph (entryFile: string): { files: Set<string>; externals: Set<s
   }
   return { files, externals }
 }
-
-test('Root surface: pulls in no Node-only modules', () => {
-  const { files, externals } = importGraph(path.join(srcRoot, 'index.js'))
-
-  const nodeOnly = [...externals].filter((specifier) =>
-    specifier.startsWith('node:') ||
-    specifier === 'better-sqlite3' ||
-    specifier === 'fs' ||
-    specifier === 'path' ||
-    specifier.startsWith('fs/') ||
-    specifier.startsWith('path/')
-  )
-  assert.deepEqual(nodeOnly, [], `root graph must stay Node-free, found: ${nodeOnly.join(', ')}`)
-
-  const reachable = [...files].map((file) => path.relative(srcRoot, file))
-  assert.ok(!reachable.includes('node.js'), 'node entry is not reachable from root')
-  assert.ok(!reachable.includes('sqlite-loader.js'), 'native loader is not reachable from root')
-  assert.ok(!reachable.some((file) => file.endsWith('db.js')), 'database factories are not reachable from root')
-})
 
 test('Root surface: shared source references no Buffer global', () => {
   const { files } = importGraph(path.join(srcRoot, 'index.js'))
