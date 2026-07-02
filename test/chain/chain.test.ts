@@ -1,7 +1,7 @@
 import assert from 'node:assert'
 import { test } from 'node:test'
 
-import type { DBNewRailgunTransaction } from '../../src/node/index.js'
+import type { DBNewRailgunTransaction, ScanBatch } from '../../src/chain/index.js'
 import {
   deleteNullifiersFromBlock,
   getAllNullifiers,
@@ -15,12 +15,13 @@ import {
   getUnshieldsByBlockRange,
   insertCommitmentBatch,
   insertNullifiersBatch,
-  insertScanBatch,
   insertUnshieldBatch,
   nullifierExists,
   setMerkleTree,
   updateSyncState
-} from '../../src/node/index.js'
+} from '../../src/chain/index.js'
+import type { ChainDB } from '../../src/node/index.js'
+import { createChainStorage } from '../../src/node/index.js'
 import {
   createTestChainDB,
   createTestMerkleTree,
@@ -30,6 +31,16 @@ import {
   createTestUnshields,
   shuffleArray
 } from '../utils.js'
+
+/**
+ * Persist one scan batch atomically through the Node storage adapter.
+ * @param db - Chain database instance.
+ * @param batch - Scan batch to persist.
+ * @returns Resolves when the batch is committed.
+ */
+function insertScanBatch (db: ChainDB, batch: ScanBatch): Promise<void> {
+  return createChainStorage(db).insertScanBatch(batch)
+}
 
 test('ChainDB: Insert nullifiers', async () => {
   const db = await createTestChainDB()

@@ -15,12 +15,17 @@ test('Root Entry: exposes the runtime-agnostic surface', () => {
   assert.equal(typeof root.toDBNotes, 'function', 'note converter is exported')
 })
 
-test('Root Entry: does not expose runtime-dependent queries or factories', () => {
+test('Root Entry: exposes the driver-neutral storage factories', () => {
+  assert.equal(typeof root.createChainStorage, 'function')
+  assert.equal(typeof root.createWalletStorage, 'function')
+})
+
+test('Root Entry: does not expose raw queries or database factories', () => {
   const surface = root as Record<string, unknown>
-  assert.equal(surface['getUnspentNotes'], undefined, 'queries live under ./node')
-  assert.equal(surface['insertScanBatch'], undefined, 'queries live under ./node')
-  assert.equal(surface['createChainDB'], undefined, 'factories live under ./node')
-  assert.equal(surface['createWalletDB'], undefined, 'factories live under ./node')
+  assert.equal(surface['getUnspentNotes'], undefined, 'raw queries stay internal')
+  assert.equal(surface['applyScanBatch'], undefined, 'raw queries stay internal')
+  assert.equal(surface['createChainDB'], undefined, 'database factories live under ./node')
+  assert.equal(surface['createWalletDB'], undefined, 'database factories live under ./node')
 })
 
 test('Root Entry: does not leak core value helpers', () => {

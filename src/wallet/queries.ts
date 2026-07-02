@@ -1,11 +1,11 @@
 import { encode } from '@msgpack/msgpack'
 import { and, eq, isNull, or, sql } from 'drizzle-orm'
-import type { SQLiteTransaction } from 'drizzle-orm/sqlite-core'
 
+import { normalizeMutationCount } from '../core/batch.js'
+import type { WalletDatabase } from '../core/database.js'
 import { normalizeToken } from '../core/token.js'
 import type { NoteIdentity, NoteNullifierIdentity, NotePoiStatusUpdate } from '../core/types.js'
 
-import type { WalletDB } from './db.js'
 import type { DBNewNote, DBNewTxHistory, DBNewWallet, DBNote } from './schema.js'
 import {
   notes,
@@ -13,8 +13,6 @@ import {
   txHistory,
   wallets
 } from './schema.js'
-
-type DBContext = WalletDB | SQLiteTransaction<any, any, any, any>
 
 const POI_STATUS_VALID = 'Valid'
 const POI_STATUS_NON_VALID_MARKERS = [
@@ -114,8 +112,8 @@ function shouldRefreshPoiStatus (
  * @param wallet - Data for the new wallet.
  * @returns The `id` of the created wallet.
  */
-async function createWallet (db: WalletDB, wallet: DBNewWallet): Promise<string> {
-  db.insert(wallets).values(wallet).run()
+async function createWallet (db: WalletDatabase, wallet: DBNewWallet): Promise<string> {
+  await db.insert(wallets).values(wallet).run()
   return wallet.id
 }
 
@@ -125,7 +123,7 @@ async function createWallet (db: WalletDB, wallet: DBNewWallet): Promise<string>
  * @param walletId - Identifier of the wallet to fetch.
  * @returns The wallet record or `undefined` if not found.
  */
-async function getWallet (db: WalletDB, walletId: string) {
+async function getWallet (db: WalletDatabase, walletId: string) {
   return db.select().from(wallets).where(eq(wallets.id, walletId)).get()
 }
 
@@ -134,21 +132,19 @@ async function getWallet (db: WalletDB, walletId: string) {
  * @param db - Wallet database instance.
  * @returns An array of wallet records.
  */
-async function listWallets (db: WalletDB) {
+async function listWallets (db: WalletDatabase) {
   return db.select().from(wallets).all()
 }
 
 /**
- * Delete a wallet by ID, wrapped in a transaction.
+ * Delete a wallet by ID.
  * @param db - Wallet database instance.
  * @param walletId - Identifier of the wallet to delete.
  * @returns Number of rows deleted (should be 0 or 1).
  */
-async function deleteWallet (db: WalletDB, walletId: string): Promise<number> {
-  return db.transaction((tx) => {
-    const result = tx.delete(wallets).where(eq(wallets.id, walletId)).run()
-    return result.changes
-  })
+async function deleteWallet (db: WalletDatabase, walletId: string): Promise<number> {
+  const result = await db.delete(wallets).where(eq(wallets.id, walletId)).run()
+  return normalizeMutationCount(result)
 }
 
 /**
@@ -156,8 +152,8 @@ async function deleteWallet (db: WalletDB, walletId: string): Promise<number> {
  * @param db - Wallet database instance.
  * @param note - Note data to insert.
  */
-async function insertNote (db: WalletDB, note: DBNewNote): Promise<void> {
-  db.insert(notes)
+async function insertNote (db: WalletDatabase, note: DBNewNote): Promise<void> {
+  await db.insert(notes)
     .values({ ...note, token: normalizeToken(note.token) })
     .onConflictDoNothing({
       target: [notes.walletId, notes.chainId, notes.commitment],
@@ -172,7 +168,7 @@ async function insertNote (db: WalletDB, note: DBNewNote): Promise<void> {
  * @param noteList - Array of notes to insert.
  * @returns Number of rows inserted or updated.
  */
-async function insertNotesBatch (db: WalletDB, noteList: DBNewNote[]): Promise<number> {
+async function insertNotesBatch (db: WalletDatabase, noteList: DBNewNote[]): Promise<number> {
   if (noteList.length === 0) return 0
 
   const normalizedNotes = noteList.map((note) => ({
@@ -180,33 +176,31 @@ async function insertNotesBatch (db: WalletDB, noteList: DBNewNote[]): Promise<n
     token: normalizeToken(note.token),
   }))
 
-  return db.transaction((tx) => {
-    const result = tx
-      .insert(notes)
-      .values(normalizedNotes)
-      .onConflictDoUpdate({
-        target: [notes.walletId, notes.chainId, notes.commitment],
-        set: {
-          outputType: sql`coalesce(${notes.outputType}, excluded.output_type)`,
-          npk: sql`coalesce(${notes.npk}, excluded.npk)`,
-          random: sql`coalesce(${notes.random}, excluded.random)`,
-          blindedCommitment: sql`coalesce(${notes.blindedCommitment}, excluded.blinded_commitment)`,
-          creationRailgunTxid: sql`coalesce(${notes.creationRailgunTxid}, excluded.creation_railgun_txid)`,
-          creationTxid: sql`coalesce(${notes.creationTxid}, excluded.creation_txid)`,
-        },
-        where: sql`
-          (${notes.outputType} IS NULL AND excluded.output_type IS NOT NULL) OR
-          (${notes.npk} IS NULL AND excluded.npk IS NOT NULL) OR
-          (${notes.random} IS NULL AND excluded.random IS NOT NULL) OR
-          (${notes.blindedCommitment} IS NULL AND excluded.blinded_commitment IS NOT NULL) OR
-          (${notes.creationRailgunTxid} IS NULL AND excluded.creation_railgun_txid IS NOT NULL) OR
-          (${notes.creationTxid} IS NULL AND excluded.creation_txid IS NOT NULL)
-        `,
-      })
-      .run()
+  const result = await db
+    .insert(notes)
+    .values(normalizedNotes)
+    .onConflictDoUpdate({
+      target: [notes.walletId, notes.chainId, notes.commitment],
+      set: {
+        outputType: sql`coalesce(${notes.outputType}, excluded.output_type)`,
+        npk: sql`coalesce(${notes.npk}, excluded.npk)`,
+        random: sql`coalesce(${notes.random}, excluded.random)`,
+        blindedCommitment: sql`coalesce(${notes.blindedCommitment}, excluded.blinded_commitment)`,
+        creationRailgunTxid: sql`coalesce(${notes.creationRailgunTxid}, excluded.creation_railgun_txid)`,
+        creationTxid: sql`coalesce(${notes.creationTxid}, excluded.creation_txid)`,
+      },
+      where: sql`
+        (${notes.outputType} IS NULL AND excluded.output_type IS NOT NULL) OR
+        (${notes.npk} IS NULL AND excluded.npk IS NOT NULL) OR
+        (${notes.random} IS NULL AND excluded.random IS NOT NULL) OR
+        (${notes.blindedCommitment} IS NULL AND excluded.blinded_commitment IS NOT NULL) OR
+        (${notes.creationRailgunTxid} IS NULL AND excluded.creation_railgun_txid IS NOT NULL) OR
+        (${notes.creationTxid} IS NULL AND excluded.creation_txid IS NOT NULL)
+      `,
+    })
+    .run()
 
-    return result.changes
-  })
+  return normalizeMutationCount(result)
 }
 
 /**
@@ -216,7 +210,7 @@ async function insertNotesBatch (db: WalletDB, noteList: DBNewNote[]): Promise<n
  * @param chainId - Chain identifier.
  * @returns - All the unspent notes for given walletID on the given chain.
  */
-async function getUnspentNotes (db: WalletDB, walletId: string, chainId: number) {
+async function getUnspentNotes (db: WalletDatabase, walletId: string, chainId: number) {
   return db
     .select()
     .from(notes)
@@ -239,7 +233,7 @@ async function getUnspentNotes (db: WalletDB, walletId: string, chainId: number)
  * @returns - Unspent notes for the wallet/chain/token.
  */
 async function getUnspentNotesByToken (
-  db: WalletDB,
+  db: WalletDatabase,
   walletId: string,
   chainId: number,
   token: string
@@ -264,7 +258,7 @@ async function getUnspentNotesByToken (
  * @param identity - Wallet, chain, and commitment to search for.
  * @returns The note record or `undefined`.
  */
-async function getNoteByCommitment (db: WalletDB, identity: NoteIdentity) {
+async function getNoteByCommitment (db: WalletDatabase, identity: NoteIdentity) {
   return db.select().from(notes).where(noteIdentityWhere(identity)).get()
 }
 
@@ -274,29 +268,8 @@ async function getNoteByCommitment (db: WalletDB, identity: NoteIdentity) {
  * @param identity - Chain, nullifier, and tree number to search for.
  * @returns The note record or `undefined`.
  */
-async function getNoteByNullifier (db: WalletDB, identity: NoteNullifierIdentity) {
+async function getNoteByNullifier (db: WalletDatabase, identity: NoteNullifierIdentity) {
   return db.select().from(notes).where(noteNullifierIdentityWhere(identity)).get()
-}
-
-/**
- * Mark a note as spent and record the transaction ID that spent it.
- * Synchronous core shared by the public function and the batch variant.
- * @param db - Wallet database instance.
- * @param identity - Wallet, chain, and commitment of the note to update.
- * @param spentTxid - Transaction ID that spent the note.
- * @returns Number of rows updated.
- */
-function markNoteSpentSync (
-  db: DBContext,
-  identity: NoteIdentity,
-  spentTxid: Uint8Array
-): number {
-  const result = db.update(notes)
-    .set({ spent: true, spentTxid })
-    .where(noteIdentityWhere(identity))
-    .run()
-
-  return result.changes
 }
 
 /**
@@ -307,34 +280,36 @@ function markNoteSpentSync (
  * @returns Number of rows updated.
  */
 async function markNoteSpent (
-  db: WalletDB,
+  db: WalletDatabase,
   identity: NoteIdentity,
   spentTxid: Uint8Array
 ): Promise<number> {
-  return markNoteSpentSync(db, identity, spentTxid)
+  const result = await db.update(notes)
+    .set({ spent: true, spentTxid })
+    .where(noteIdentityWhere(identity))
+    .run()
+  return normalizeMutationCount(result)
 }
 
 /**
- * Mark multiple notes as spent in a single transaction.
- * @param db - Wallet database instance.
+ * Mark multiple notes as spent, recording the transaction ID that spent them.
+ * The updates must land together: run this inside a transaction context so
+ * the batch persists atomically.
+ * @param db - Wallet database or transaction context.
  * @param identities - Array of wallet/chain/commitment note identities to update.
  * @param spentTxid - Transaction ID that spent the notes.
  * @returns Number of rows updated.
  */
-async function markNotesSpentBatch (
-  db: WalletDB,
+async function applyNoteSpends (
+  db: WalletDatabase,
   identities: NoteIdentity[],
   spentTxid: Uint8Array
 ): Promise<number> {
-  if (identities.length === 0) return 0
-
-  return db.transaction((tx) => {
-    let updated = 0
-    for (const identity of identities) {
-      updated += markNoteSpentSync(tx, identity, spentTxid)
-    }
-    return updated
-  })
+  let updated = 0
+  for (const identity of identities) {
+    updated += await markNoteSpent(db, identity, spentTxid)
+  }
+  return updated
 }
 
 /**
@@ -344,7 +319,7 @@ async function markNotesSpentBatch (
  * @param chainId - Chain identifier.
  * @returns Array of note records.
  */
-async function getAllNotes (db: WalletDB, walletId: string, chainId: number) {
+async function getAllNotes (db: WalletDatabase, walletId: string, chainId: number) {
   return db
     .select()
     .from(notes)
@@ -367,7 +342,7 @@ async function getAllNotes (db: WalletDB, walletId: string, chainId: number) {
  * @returns Notes with no PPOI status or a non-Valid required-list status.
  */
 async function getNotesNeedingPoiRefresh (
-  db: WalletDB,
+  db: WalletDatabase,
   walletId: string,
   chainId: number,
   requiredListKeys: readonly string[] = []
@@ -389,30 +364,6 @@ async function getNotesNeedingPoiRefresh (
 
 /**
  * Persist a note's blinded commitment and PPOI status together.
- * Synchronous core shared by the public function and the batch variant.
- * @param db - Wallet database instance.
- * @param identity - Wallet, chain, and commitment of the note to update.
- * @param blindedCommitment - Derived PPOI lookup key.
- * @param poisPerList - PPOI statuses by list key, or null to leave status pending.
- * @returns Number of rows updated.
- */
-function updateNotePoiStatusSync (
-  db: DBContext,
-  identity: NoteIdentity,
-  blindedCommitment: Uint8Array,
-  poisPerList: Record<string, string> | null
-): number {
-  const result = db
-    .update(notes)
-    .set({ blindedCommitment, poisPerList })
-    .where(noteIdentityWhere(identity))
-    .run()
-
-  return result.changes
-}
-
-/**
- * Persist a note's blinded commitment and PPOI status together.
  * @param db - Wallet database instance.
  * @param identity - Wallet, chain, and commitment of the note to update.
  * @param blindedCommitment - Derived PPOI lookup key.
@@ -420,38 +371,41 @@ function updateNotePoiStatusSync (
  * @returns Number of rows updated.
  */
 async function updateNotePoiStatus (
-  db: WalletDB,
+  db: WalletDatabase,
   identity: NoteIdentity,
   blindedCommitment: Uint8Array,
   poisPerList: Record<string, string> | null
 ): Promise<number> {
-  return updateNotePoiStatusSync(db, identity, blindedCommitment, poisPerList)
+  const result = await db
+    .update(notes)
+    .set({ blindedCommitment, poisPerList })
+    .where(noteIdentityWhere(identity))
+    .run()
+  return normalizeMutationCount(result)
 }
 
 /**
- * Persist PPOI status updates for multiple notes in one transaction.
- * @param db - Wallet database instance.
+ * Persist PPOI status updates for multiple notes. The updates must land
+ * together: run this inside a transaction context so the batch persists
+ * atomically.
+ * @param db - Wallet database or transaction context.
  * @param updates - Note PPOI updates.
  * @returns Number of rows updated.
  */
-async function updateNotePoiStatusBatch (
-  db: WalletDB,
+async function applyNotePoiStatusUpdates (
+  db: WalletDatabase,
   updates: NotePoiStatusUpdate[]
 ): Promise<number> {
-  if (updates.length === 0) return 0
-
-  return db.transaction((tx) => {
-    let updated = 0
-    for (const update of updates) {
-      updated += updateNotePoiStatusSync(
-        tx,
-        update,
-        update.blindedCommitment,
-        update.poisPerList
-      )
-    }
-    return updated
-  })
+  let updated = 0
+  for (const update of updates) {
+    updated += await updateNotePoiStatus(
+      db,
+      update,
+      update.blindedCommitment,
+      update.poisPerList
+    )
+  }
+  return updated
 }
 
 /**
@@ -461,7 +415,7 @@ async function updateNotePoiStatusBatch (
  * @param chainId - Chain identifier.
  * @returns - Scan state for given chain for given wallet.
  */
-async function getScanState (db: WalletDB, walletId: string, chainId: number) {
+async function getScanState (db: WalletDatabase, walletId: string, chainId: number) {
   return db
     .select()
     .from(scanState)
@@ -479,12 +433,12 @@ async function getScanState (db: WalletDB, walletId: string, chainId: number) {
  * @param lastScannedBlock - Latest block height scanned.
  */
 async function updateScanState (
-  db: WalletDB,
+  db: WalletDatabase,
   walletId: string,
   chainId: number,
   lastScannedBlock: bigint
 ): Promise<void> {
-  db.insert(scanState)
+  await db.insert(scanState)
     .values({ walletId, chainId, lastScannedBlock })
     .onConflictDoUpdate({
       target: [scanState.walletId, scanState.chainId],
@@ -498,8 +452,8 @@ async function updateScanState (
  * @param db - Wallet database instance.
  * @param tx - Transaction history record to insert.
  */
-async function insertTxHistory (db: WalletDB, tx: DBNewTxHistory): Promise<void> {
-  db.insert(txHistory).values(tx).onConflictDoNothing().run()
+async function insertTxHistory (db: WalletDatabase, tx: DBNewTxHistory): Promise<void> {
+  await db.insert(txHistory).values(tx).onConflictDoNothing().run()
 }
 
 /**
@@ -508,18 +462,16 @@ async function insertTxHistory (db: WalletDB, tx: DBNewTxHistory): Promise<void>
  * @param txs - Array of transaction history records.
  * @returns Number of rows inserted.
  */
-async function insertTxHistoryBatch (db: WalletDB, txs: DBNewTxHistory[]): Promise<number> {
+async function insertTxHistoryBatch (db: WalletDatabase, txs: DBNewTxHistory[]): Promise<number> {
   if (txs.length === 0) return 0
 
-  return db.transaction((tx) => {
-    const result = tx
-      .insert(txHistory)
-      .values(txs)
-      .onConflictDoNothing()
-      .run()
+  const result = await db
+    .insert(txHistory)
+    .values(txs)
+    .onConflictDoNothing()
+    .run()
 
-    return result.changes
-  })
+  return normalizeMutationCount(result)
 }
 
 /**
@@ -531,7 +483,7 @@ async function insertTxHistoryBatch (db: WalletDB, txs: DBNewTxHistory[]): Promi
  * @returns - Transaction history rows ordered by block desc.
  */
 async function getTxHistory (
-  db: WalletDB,
+  db: WalletDatabase,
   walletId: string,
   chainId: number,
   limit: number = 100
@@ -551,7 +503,7 @@ async function getTxHistory (
  * @param txId - Transaction ID to lookup.
  * @returns The history record or `undefined`.
  */
-async function getTxById (db: WalletDB, txId: string) {
+async function getTxById (db: WalletDatabase, txId: string) {
   return db.select().from(txHistory).where(eq(txHistory.id, txId)).get()
 }
 
@@ -561,20 +513,20 @@ async function getTxById (db: WalletDB, txId: string) {
  * @param walletId - Identifier of the wallet.
  * @returns - Get walletDB statistics like total notes, unspent note count, tx history count ...
  */
-async function getWalletDBStats (db: WalletDB, walletId: string) {
-  const notesCount = db
+async function getWalletDBStats (db: WalletDatabase, walletId: string) {
+  const notesCount = await db
     .select({ count: sql<number>`count(*)` })
     .from(notes)
     .where(eq(notes.walletId, walletId))
     .get()
 
-  const unspentNotesCount = db
+  const unspentNotesCount = await db
     .select({ count: sql<number>`count(*)` })
     .from(notes)
     .where(and(eq(notes.walletId, walletId), eq(notes.spent, false)))
     .get()
 
-  const txHistoryCount = db
+  const txHistoryCount = await db
     .select({ count: sql<number>`count(*)` })
     .from(txHistory)
     .where(eq(txHistory.walletId, walletId))
@@ -599,11 +551,11 @@ export {
   getNoteByCommitment,
   getNoteByNullifier,
   markNoteSpent,
-  markNotesSpentBatch,
+  applyNoteSpends,
   getAllNotes,
   getNotesNeedingPoiRefresh,
   updateNotePoiStatus,
-  updateNotePoiStatusBatch,
+  applyNotePoiStatusUpdates,
   getScanState,
   updateScanState,
   insertTxHistory,

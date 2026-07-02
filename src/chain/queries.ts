@@ -1,9 +1,9 @@
 import { and, asc, desc, eq, getTableColumns, gte, lte, sql } from 'drizzle-orm'
-import type { SQLiteTransaction } from 'drizzle-orm/sqlite-core'
 
+import { normalizeMutationCount } from '../core/batch.js'
+import type { ChainDatabase } from '../core/database.js'
 import type { ScanBatch } from '../core/types.js'
 
-import type { ChainDB } from './db.js'
 import type {
   DBNewCommitment,
   DBNewMerkleTree,
@@ -23,7 +23,16 @@ import {
   unshields,
 } from './schema.js'
 
-type DBContext = ChainDB | SQLiteTransaction<any, any, any, any>
+/**
+ * Validated snapshot checkpoint metadata to persist for a chain.
+ */
+type SnapshotCheckpointInput = {
+  chainID: number
+  cid: string
+  blockHeight: bigint
+  trees: SnapshotCheckpointTree[]
+  validatedAt?: number
+}
 
 /**
  * Insert new entry or update existing entry in the table by overriding it
@@ -33,12 +42,12 @@ type DBContext = ChainDB | SQLiteTransaction<any, any, any, any>
  * @param values - Input values to insert/update in the table
  * @returns - Number of total changed entries in the table
  */
-function upsertRow<T extends Record<string, unknown>> (
-  db: DBContext,
+async function upsertRow<T extends Record<string, unknown>> (
+  db: ChainDatabase,
   table: any,
   target: any,
   values: T | T[]
-) {
+): Promise<number> {
   const columns = getTableColumns(table)
 
   const firstValue = Array.isArray(values) ? values[0] : values
@@ -55,12 +64,12 @@ function upsertRow<T extends Record<string, unknown>> (
       ])
   )
 
-  return db.insert(table)
+  const result = await db.insert(table)
     .values(values)
     .onConflictDoUpdate({ target, set }).run()
+  return normalizeMutationCount(result)
 }
 
-// Nullifiers
 /**
  * Determine whether a given nullifier exists in the table.
  * @param db - Chain database instance.
@@ -68,8 +77,8 @@ function upsertRow<T extends Record<string, unknown>> (
  * @param treeNumber - Tree Number of nullifier
  * @returns `true` if the nullifier is present, otherwise `false`.
  */
-async function nullifierExists (db: ChainDB, nullifier: Uint8Array, treeNumber: number): Promise<boolean> {
-  const result = db
+async function nullifierExists (db: ChainDatabase, nullifier: Uint8Array, treeNumber: number): Promise<boolean> {
+  const result = await db
     .select()
     .from(nullifiers)
     .where(and(
@@ -82,25 +91,13 @@ async function nullifierExists (db: ChainDB, nullifier: Uint8Array, treeNumber: 
 
 /**
  * Insert a batch of nullifiers, updating existing records if necessary.
- * Synchronous core shared by the public function and `insertScanBatch`.
- * @param db - Chain database or transaction context.
- * @param nullifierBatch - Array of nullifiers to insert.
- * @returns The number of rows changed.
- */
-function insertNullifiersBatchSync (db: DBContext, nullifierBatch: DBNewNullifier[]): number {
-  if (nullifierBatch.length === 0) return 0
-  const { changes } = upsertRow<DBNewNullifier>(db, nullifiers, [nullifiers.nullifier, nullifiers.treeNumber], nullifierBatch)
-  return changes
-}
-
-/**
- * Insert a batch of nullifiers, updating existing records if necessary.
  * @param db - Chain database instance.
  * @param nullifierBatch - Array of nullifiers to insert.
  * @returns The number of rows changed.
  */
-async function insertNullifiersBatch (db: ChainDB, nullifierBatch: DBNewNullifier[]): Promise<number> {
-  return insertNullifiersBatchSync(db, nullifierBatch)
+async function insertNullifiersBatch (db: ChainDatabase, nullifierBatch: DBNewNullifier[]): Promise<number> {
+  if (nullifierBatch.length === 0) return 0
+  return upsertRow<DBNewNullifier>(db, nullifiers, [nullifiers.nullifier, nullifiers.treeNumber], nullifierBatch)
 }
 
 /**
@@ -111,7 +108,7 @@ async function insertNullifiersBatch (db: ChainDB, nullifierBatch: DBNewNullifie
  * @returns Array of nullifiers sorted by block number.
  */
 async function getNullifiersByBlockRange (
-  db: ChainDB,
+  db: ChainDatabase,
   fromBlock: bigint,
   toBlock: bigint
 ) {
@@ -135,12 +132,12 @@ async function getNullifiersByBlockRange (
  * @param fromBlock - Block number from which to delete (inclusive).
  * @returns Number of rows deleted.
  */
-async function deleteNullifiersFromBlock (db: ChainDB, fromBlock: bigint): Promise<number> {
-  const { changes } = db
+async function deleteNullifiersFromBlock (db: ChainDatabase, fromBlock: bigint): Promise<number> {
+  const result = await db
     .delete(nullifiers)
     .where(gte(nullifiers.blockNumber, fromBlock))
     .run()
-  return changes
+  return normalizeMutationCount(result)
 }
 
 /**
@@ -148,7 +145,7 @@ async function deleteNullifiersFromBlock (db: ChainDB, fromBlock: bigint): Promi
  * @param db - Chain database instance.
  * @returns Array of all nullifier records sorted by block number.
  */
-async function getAllNullifiers (db: ChainDB) {
+async function getAllNullifiers (db: ChainDatabase) {
   return db
     .select()
     .from(nullifiers)
@@ -162,7 +159,7 @@ async function getAllNullifiers (db: ChainDB) {
  * @param fromBlock - Starting block height (inclusive).
  * @returns Array of nullifier records sorted by block number.
  */
-async function getNullifiersFromBlock (db: ChainDB, fromBlock: bigint) {
+async function getNullifiersFromBlock (db: ChainDatabase, fromBlock: bigint) {
   return db
     .select()
     .from(nullifiers)
@@ -175,25 +172,13 @@ async function getNullifiersFromBlock (db: ChainDB, fromBlock: bigint) {
 
 /**
  * Insert or update a batch of commitments in the table.
- * Synchronous core shared by the public function and `insertScanBatch`.
- * @param db - Chain database or transaction context.
- * @param commitmentBatch - Array of commitment records to upsert.
- * @returns Number of rows changed.
- */
-function insertCommitmentBatchSync (db: DBContext, commitmentBatch: DBNewCommitment[]): number {
-  if (commitmentBatch.length === 0) return 0
-  const { changes } = upsertRow(db, commitments, commitments.hash, commitmentBatch)
-  return changes
-}
-
-/**
- * Insert or update a batch of commitments in the table.
  * @param db - Chain database instance.
  * @param commitmentBatch - Array of commitment records to upsert.
  * @returns Number of rows changed.
  */
-async function insertCommitmentBatch (db: ChainDB, commitmentBatch: DBNewCommitment[]): Promise<number> {
-  return insertCommitmentBatchSync(db, commitmentBatch)
+async function insertCommitmentBatch (db: ChainDatabase, commitmentBatch: DBNewCommitment[]): Promise<number> {
+  if (commitmentBatch.length === 0) return 0
+  return upsertRow(db, commitments, commitments.hash, commitmentBatch)
 }
 
 /**
@@ -205,7 +190,7 @@ async function insertCommitmentBatch (db: ChainDB, commitmentBatch: DBNewCommitm
  * @returns Array of commitments ordered by leaf index.
  */
 async function getCommitmentsByLeafRange (
-  db: ChainDB,
+  db: ChainDatabase,
   treeNumber: number,
   startLeafIndex: number,
   endLeafIndex:number
@@ -233,7 +218,7 @@ async function getCommitmentsByLeafRange (
  * @returns Array of commitments sorted by block number.
  */
 async function getCommitmentsByBlockRange (
-  db: ChainDB,
+  db: ChainDatabase,
   fromBlock: bigint,
   toBlock: bigint
 ) {
@@ -257,12 +242,12 @@ async function getCommitmentsByBlockRange (
  * @param fromBlock - Block height from which to start deletion (inclusive).
  * @returns Number of rows deleted.
  */
-async function deleteCommitmentsFromBlock (db: ChainDB, fromBlock: bigint): Promise<number> {
-  const { changes } = db
+async function deleteCommitmentsFromBlock (db: ChainDatabase, fromBlock: bigint): Promise<number> {
+  const result = await db
     .delete(commitments)
     .where(gte(commitments.blockNumber, fromBlock))
     .run()
-  return changes
+  return normalizeMutationCount(result)
 }
 
 /**
@@ -271,7 +256,7 @@ async function deleteCommitmentsFromBlock (db: ChainDB, fromBlock: bigint): Prom
  * @param treeNumber - Identifier of the Merkle tree.
  * @returns The leaf data (as a Uint8Array) for the specified tree.
  */
-async function getMerkleTree (db: ChainDB, treeNumber: number) {
+async function getMerkleTree (db: ChainDatabase, treeNumber: number) {
   return db
     .select()
     .from(merkleTrees)
@@ -284,7 +269,7 @@ async function getMerkleTree (db: ChainDB, treeNumber: number) {
  * @param db - Chain database instance.
  * @returns Array of all Merkle tree records sorted by tree number.
  */
-async function getAllMerkleTrees (db: ChainDB) {
+async function getAllMerkleTrees (db: ChainDatabase) {
   return db
     .select()
     .from(merkleTrees)
@@ -294,24 +279,12 @@ async function getAllMerkleTrees (db: ChainDB) {
 
 /**
  * Insert or update a Merkle tree record.
- * Synchronous core shared by the public function and `insertScanBatch`.
- * @param db - Chain database or transaction context.
- * @param tree - Merkle tree data to persist.
- * @returns Number of rows affected (should always be 1).
- */
-function setMerkleTreeSync (db: DBContext, tree: DBNewMerkleTree): number {
-  const { changes } = upsertRow(db, merkleTrees, merkleTrees.treeNumber, tree)
-  return changes
-}
-
-/**
- * Insert or update a Merkle tree record.
  * @param db - Chain database instance.
  * @param tree - Merkle tree data to persist.
  * @returns Number of rows affected (should always be 1).
  */
-async function setMerkleTree (db: ChainDB, tree: DBNewMerkleTree): Promise<number> {
-  return setMerkleTreeSync(db, tree)
+async function setMerkleTree (db: ChainDatabase, tree: DBNewMerkleTree): Promise<number> {
+  return upsertRow(db, merkleTrees, merkleTrees.treeNumber, tree)
 }
 
 /**
@@ -320,29 +293,12 @@ async function setMerkleTree (db: ChainDB, tree: DBNewMerkleTree): Promise<numbe
  * @param chainID - Identifier of the chain.
  * @returns Sync state containing the last synced block height.
  */
-async function getSyncState (db: ChainDB, chainID: number) {
+async function getSyncState (db: ChainDatabase, chainID: number) {
   return db
     .select()
     .from(syncState)
     .where(eq(syncState.chainID, chainID))
     .get()
-}
-
-/**
- * Update the synchronization state for a chain.
- * Synchronous core shared by the public function and `insertScanBatch`.
- * @param db - Chain database or transaction context.
- * @param chainID - Identifier of the chain.
- * @param lastBlockHeight - Last synced block height for the chain.
- * @returns Number of rows affected (should be 1).
- */
-function updateSyncStateSync (
-  db: DBContext,
-  chainID: number,
-  lastBlockHeight: bigint
-): number {
-  const { changes } = upsertRow(db, syncState, syncState.chainID, { chainID, lastBlockHeight })
-  return changes
 }
 
 /**
@@ -353,11 +309,11 @@ function updateSyncStateSync (
  * @returns Number of rows affected (should be 1).
  */
 async function updateSyncState (
-  db: ChainDB,
+  db: ChainDatabase,
   chainID: number,
   lastBlockHeight: bigint
 ): Promise<number> {
-  return updateSyncStateSync(db, chainID, lastBlockHeight)
+  return upsertRow(db, syncState, syncState.chainID, { chainID, lastBlockHeight })
 }
 
 /**
@@ -366,7 +322,7 @@ async function updateSyncState (
  * @param chainID - Chain identifier.
  * @returns Validated checkpoint row, when one exists.
  */
-async function getSnapshotCheckpoint (db: ChainDB, chainID: number) {
+async function getSnapshotCheckpoint (db: ChainDatabase, chainID: number) {
   return db
     .select()
     .from(snapshotCheckpoints)
@@ -375,50 +331,38 @@ async function getSnapshotCheckpoint (db: ChainDB, chainID: number) {
 }
 
 /**
- * Record a validated checkpoint in the staged chain database. The checkpoint
- * and scan cursor are checked in one transaction so a database cannot be
- * promoted with a checkpoint that claims coverage beyond its persisted state.
- * @param db - Staged chain database.
+ * Record a validated checkpoint in a staged chain database. The checkpoint is
+ * only written when the persisted scan cursor matches the checkpoint height,
+ * so a database cannot claim coverage beyond its persisted state. The check
+ * and the write must be atomic: run this inside a transaction context.
+ * @param db - Chain database or transaction context.
  * @param checkpoint - Validated checkpoint metadata.
- * @param checkpoint.chainID - Chain identifier.
- * @param checkpoint.cid - Content identifier of the validated artifact.
- * @param checkpoint.blockHeight - Exact validated snapshot end height.
- * @param checkpoint.trees - Validated commitment-tree states.
- * @param checkpoint.validatedAt - Optional validation timestamp in milliseconds.
  */
-async function recordSnapshotCheckpoint (
-  db: ChainDB,
-  checkpoint: {
-    chainID: number
-    cid: string
-    blockHeight: bigint
-    trees: SnapshotCheckpointTree[]
-    validatedAt?: number
-  }
+async function applySnapshotCheckpoint (
+  db: ChainDatabase,
+  checkpoint: SnapshotCheckpointInput
 ): Promise<void> {
-  db.transaction((tx) => {
-    const state = tx
-      .select()
-      .from(syncState)
-      .where(eq(syncState.chainID, checkpoint.chainID))
-      .get()
+  const state = await db
+    .select()
+    .from(syncState)
+    .where(eq(syncState.chainID, checkpoint.chainID))
+    .get()
 
-    if (state?.lastBlockHeight !== checkpoint.blockHeight) {
-      throw new Error(
-        `Cannot record snapshot checkpoint at ${checkpoint.blockHeight}: ` +
-        `persisted sync cursor is ${state?.lastBlockHeight ?? 'missing'}`
-      )
-    }
+  if (state?.lastBlockHeight !== checkpoint.blockHeight) {
+    throw new Error(
+      `Cannot record snapshot checkpoint at ${checkpoint.blockHeight}: ` +
+      `persisted sync cursor is ${state?.lastBlockHeight ?? 'missing'}`
+    )
+  }
 
-    const row: DBNewSnapshotCheckpoint = {
-      chainID: checkpoint.chainID,
-      cid: checkpoint.cid,
-      blockHeight: checkpoint.blockHeight,
-      trees: checkpoint.trees,
-      validatedAt: checkpoint.validatedAt ?? Date.now()
-    }
-    upsertRow(tx, snapshotCheckpoints, snapshotCheckpoints.chainID, row)
-  })
+  const row: DBNewSnapshotCheckpoint = {
+    chainID: checkpoint.chainID,
+    cid: checkpoint.cid,
+    blockHeight: checkpoint.blockHeight,
+    trees: checkpoint.trees,
+    validatedAt: checkpoint.validatedAt ?? Date.now()
+  }
+  await upsertRow(db, snapshotCheckpoints, snapshotCheckpoints.chainID, row)
 }
 
 /**
@@ -427,35 +371,8 @@ async function recordSnapshotCheckpoint (
  * @param chainID - Identifier of the chain.
  * @returns Last block height whose Railgun TXID rows were persisted.
  */
-async function getTxidSyncCursor (db: ChainDB, chainID: number): Promise<bigint> {
+async function getTxidSyncCursor (db: ChainDatabase, chainID: number): Promise<bigint> {
   return (await getSyncState(db, chainID))?.lastTxidSyncBlockHeight ?? 0n
-}
-
-/**
- * Update the independent Railgun TXID sync cursor for a chain without
- * changing the regular commitment sync cursor.
- * Synchronous core shared by the public function and `insertScanBatch`.
- * @param db - Chain database or transaction context.
- * @param chainID - Identifier of the chain.
- * @param blockHeight - Last PPOI-complete block persisted for TXID state.
- * @returns Number of rows affected.
- */
-function setTxidSyncCursorSync (
-  db: DBContext,
-  chainID: number,
-  blockHeight: bigint
-): number {
-  const existing = db
-    .select()
-    .from(syncState)
-    .where(eq(syncState.chainID, chainID))
-    .get()
-  const { changes } = upsertRow(db, syncState, syncState.chainID, {
-    chainID,
-    lastBlockHeight: existing?.lastBlockHeight ?? 0n,
-    lastTxidSyncBlockHeight: blockHeight
-  })
-  return changes
 }
 
 /**
@@ -467,31 +384,20 @@ function setTxidSyncCursorSync (
  * @returns Number of rows affected.
  */
 async function setTxidSyncCursor (
-  db: ChainDB,
+  db: ChainDatabase,
   chainID: number,
   blockHeight: bigint
 ): Promise<number> {
-  return setTxidSyncCursorSync(db, chainID, blockHeight)
-}
-
-/**
- * Insert Railgun transactions, ignoring already-seen Railgun TXIDs.
- * Synchronous core shared by the public function and `insertScanBatch`.
- * @param db - Chain database or transaction context.
- * @param rows - Railgun transaction rows to insert.
- * @returns Number of inserted rows.
- */
-function insertRailgunTransactionsSync (
-  db: DBContext,
-  rows: DBNewRailgunTransaction[]
-): number {
-  if (rows.length === 0) return 0
-  const { changes } = db
-    .insert(railgunTransactions)
-    .values(rows)
-    .onConflictDoNothing({ target: railgunTransactions.railgunTxid })
-    .run()
-  return changes
+  const existing = await db
+    .select()
+    .from(syncState)
+    .where(eq(syncState.chainID, chainID))
+    .get()
+  return upsertRow(db, syncState, syncState.chainID, {
+    chainID,
+    lastBlockHeight: existing?.lastBlockHeight ?? 0n,
+    lastTxidSyncBlockHeight: blockHeight
+  })
 }
 
 /**
@@ -501,10 +407,16 @@ function insertRailgunTransactionsSync (
  * @returns Number of inserted rows.
  */
 async function insertRailgunTransactions (
-  db: ChainDB,
+  db: ChainDatabase,
   rows: DBNewRailgunTransaction[]
 ): Promise<number> {
-  return insertRailgunTransactionsSync(db, rows)
+  if (rows.length === 0) return 0
+  const result = await db
+    .insert(railgunTransactions)
+    .values(rows)
+    .onConflictDoNothing({ target: railgunTransactions.railgunTxid })
+    .run()
+  return normalizeMutationCount(result)
 }
 
 /**
@@ -514,7 +426,7 @@ async function insertRailgunTransactions (
  * @returns Matching transaction row, when present.
  */
 async function getRailgunTransactionByTxid (
-  db: ChainDB,
+  db: ChainDatabase,
   railgunTxid: Uint8Array
 ) {
   return db
@@ -532,7 +444,7 @@ async function getRailgunTransactionByTxid (
  * @returns Transactions ordered by block number.
  */
 async function getRailgunTransactionsByBlockRange (
-  db: ChainDB,
+  db: ChainDatabase,
   fromBlock: bigint,
   toBlock: bigint
 ) {
@@ -558,7 +470,7 @@ async function getRailgunTransactionsByBlockRange (
  * @returns Transactions ordered by output batch start position.
  */
 async function getRailgunTransactionsByTreeRange (
-  db: ChainDB,
+  db: ChainDatabase,
   utxoTreeOut: number,
   startPosition: number,
   endPosition: number
@@ -579,25 +491,13 @@ async function getRailgunTransactionsByTreeRange (
 
 /**
  * Insert or update a batch of unshield events.
- * Synchronous core shared by the public function and `insertScanBatch`.
- * @param db - Chain database or transaction context.
- * @param unshieldsBatch - Array of unshield records to upsert.
- * @returns Number of rows changed.
- */
-function insertUnshieldBatchSync (db: DBContext, unshieldsBatch: DBNewUnshield[]): number {
-  if (unshieldsBatch.length === 0) return 0
-  const { changes } = upsertRow(db, unshields, [unshields.transactionHash, unshields.eventLogIndex], unshieldsBatch)
-  return changes
-}
-
-/**
- * Insert or update a batch of unshield events.
  * @param db - Chain database instance.
  * @param unshieldsBatch - Array of unshield records to upsert.
  * @returns Number of rows changed.
  */
-async function insertUnshieldBatch (db: ChainDB, unshieldsBatch: DBNewUnshield[]): Promise<number> {
-  return insertUnshieldBatchSync(db, unshieldsBatch)
+async function insertUnshieldBatch (db: ChainDatabase, unshieldsBatch: DBNewUnshield[]): Promise<number> {
+  if (unshieldsBatch.length === 0) return 0
+  return upsertRow(db, unshields, [unshields.transactionHash, unshields.eventLogIndex], unshieldsBatch)
 }
 
 /**
@@ -609,7 +509,7 @@ async function insertUnshieldBatch (db: ChainDB, unshieldsBatch: DBNewUnshield[]
  * @returns Array of unshield records sorted by block number.
  */
 async function getUnshieldsByBlockRange (
-  db: ChainDB,
+  db: ChainDatabase,
   fromBlock: bigint,
   toBlock: bigint
 ) {
@@ -641,11 +541,11 @@ async function getUnshieldsByBlockRange (
  * @returns The row that produced the commitment, or `undefined`.
  */
 async function findRailgunTransactionForLeaf (
-  db: ChainDB,
+  db: ChainDatabase,
   treeNumber: number,
   treePosition: number
 ) {
-  const candidates = db
+  const candidates = await db
     .select()
     .from(railgunTransactions)
     .where(
@@ -668,37 +568,36 @@ async function findRailgunTransactionForLeaf (
 }
 
 /**
- * Persist one scan batch atomically: nullifiers, commitments, unshields,
- * Railgun transactions, serialized Merkle trees, and the sync cursors are
- * written in a single transaction. The Railgun TXID cursor advances only
- * when at least one new Railgun transaction row was inserted.
- * @param db - Chain database instance.
+ * Apply one scan batch: nullifiers, commitments, unshields, Railgun
+ * transactions, serialized Merkle trees, and the sync cursors. The Railgun
+ * TXID cursor advances only when at least one new Railgun transaction row was
+ * inserted. The writes must land together: run this inside a transaction
+ * context so the batch persists atomically.
+ * @param db - Chain database or transaction context.
  * @param batch - Scan batch to persist.
  */
-async function insertScanBatch (db: ChainDB, batch: ScanBatch): Promise<void> {
-  db.transaction((tx) => {
-    if (batch.nullifiers && batch.nullifiers.length > 0) {
-      insertNullifiersBatchSync(tx, batch.nullifiers)
+async function applyScanBatch (db: ChainDatabase, batch: ScanBatch): Promise<void> {
+  if (batch.nullifiers && batch.nullifiers.length > 0) {
+    await insertNullifiersBatch(db, batch.nullifiers)
+  }
+  if (batch.commitments && batch.commitments.length > 0) {
+    await insertCommitmentBatch(db, batch.commitments)
+  }
+  if (batch.unshields && batch.unshields.length > 0) {
+    await insertUnshieldBatch(db, batch.unshields)
+  }
+  if (batch.railgunTransactions && batch.railgunTransactions.length > 0) {
+    const inserted = await insertRailgunTransactions(db, batch.railgunTransactions)
+    if (inserted > 0) {
+      await setTxidSyncCursor(db, batch.chainID, batch.blockNumber)
     }
-    if (batch.commitments && batch.commitments.length > 0) {
-      insertCommitmentBatchSync(tx, batch.commitments)
-    }
-    if (batch.unshields && batch.unshields.length > 0) {
-      insertUnshieldBatchSync(tx, batch.unshields)
-    }
-    if (batch.railgunTransactions && batch.railgunTransactions.length > 0) {
-      const inserted = insertRailgunTransactionsSync(tx, batch.railgunTransactions)
-      if (inserted > 0) {
-        setTxidSyncCursorSync(tx, batch.chainID, batch.blockNumber)
-      }
-    }
+  }
 
-    updateSyncStateSync(tx, batch.chainID, batch.blockNumber)
+  await updateSyncState(db, batch.chainID, batch.blockNumber)
 
-    for (const tree of batch.merkleTrees ?? []) {
-      setMerkleTreeSync(tx, tree)
-    }
-  })
+  for (const tree of batch.merkleTrees ?? []) {
+    await setMerkleTree(db, tree)
+  }
 }
 
 export {
@@ -718,7 +617,7 @@ export {
   getSyncState,
   updateSyncState,
   getSnapshotCheckpoint,
-  recordSnapshotCheckpoint,
+  applySnapshotCheckpoint,
   getTxidSyncCursor,
   setTxidSyncCursor,
   insertRailgunTransactions,
@@ -728,6 +627,6 @@ export {
   findRailgunTransactionForLeaf,
   insertUnshieldBatch,
   getUnshieldsByBlockRange,
-  insertScanBatch
+  applyScanBatch
 }
-export type { ScanBatch }
+export type { ScanBatch, SnapshotCheckpointInput }

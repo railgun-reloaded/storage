@@ -3,6 +3,8 @@ import { test } from 'node:test'
 
 import type { DBNewNote, DBNewSentCommitment, NoteIdentity } from '../../src/wallet/index.js'
 import {
+  applyNotePoiStatusUpdates,
+  applyNoteSpends,
   createWallet,
   deleteWallet,
   getAllNotes,
@@ -20,10 +22,8 @@ import {
   insertTxHistoryBatch,
   listWallets,
   markNoteSpent,
-  markNotesSpentBatch,
   sentCommitments,
   updateNotePoiStatus,
-  updateNotePoiStatusBatch,
   updateScanState,
 } from '../../src/wallet/index.js'
 import {
@@ -288,7 +288,7 @@ test('Wallet Database - Notes: batch mark notes as spent', async () => {
   await createWallet(db, wallet)
   await insertNotesBatch(db, notes)
 
-  const count = await markNotesSpentBatch(db, identities, spentTxid)
+  const count = await applyNoteSpends(db, identities, spentTxid)
 
   assert.equal(count, 2)
   const unspent = await getUnspentNotes(db, wallet.id, 1)
@@ -456,7 +456,7 @@ test('Wallet Database - Notes: batch POI status update persists all rows', async
   await createWallet(db, wallet)
   assert.equal(await insertNotesBatch(db, [noteA, noteB]), 2)
 
-  const updated = await updateNotePoiStatusBatch(db, [
+  const updated = await applyNotePoiStatusUpdates(db, [
     { ...noteIdentity(noteA), blindedCommitment: blindedA, poisPerList: { list: 'valid' } },
     { ...noteIdentity(noteB), blindedCommitment: blindedB, poisPerList: null },
   ])

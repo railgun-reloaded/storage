@@ -24,7 +24,7 @@
   "scripts": {
     "build": "tsc --build && npm run db:generate",
     "clean": "tsc --build --clean",
-    "prepare": "npm run build",
+    "prepare": "npm run clean && npm run build",
     "lint": "eslint",
     "lint:fix": "eslint --fix",
     "check:package": "publint",

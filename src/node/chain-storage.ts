@@ -1,34 +1,10 @@
-import type { ChainDB } from '../chain/db.js'
-import {
-  deleteCommitmentsFromBlock,
-  deleteNullifiersFromBlock,
-  findRailgunTransactionForLeaf,
-  getAllMerkleTrees,
-  getAllNullifiers,
-  getCommitmentsByBlockRange,
-  getCommitmentsByLeafRange,
-  getMerkleTree,
-  getNullifiersByBlockRange,
-  getNullifiersFromBlock,
-  getRailgunTransactionByTxid,
-  getRailgunTransactionsByBlockRange,
-  getRailgunTransactionsByTreeRange,
-  getSyncState,
-  getTxidSyncCursor,
-  getUnshieldsByBlockRange,
-  insertCommitmentBatch,
-  insertNullifiersBatch,
-  insertRailgunTransactions,
-  insertScanBatch,
-  insertUnshieldBatch,
-  nullifierExists,
-  setMerkleTree,
-  setTxidSyncCursor,
-  updateSyncState,
-} from '../chain/queries.js'
+import type { SnapshotCheckpointInput } from '../chain/queries.js'
+import { applySnapshotCheckpoint } from '../chain/queries.js'
 import type { ChainStorage } from '../core/chain-storage.js'
+import { createChainStorage as buildChainStorage } from '../core/create-chain-storage.js'
 
-import { bind, boundCount } from './bind.js'
+import type { ChainDB } from './chain-db.js'
+import { createSqliteTransactor } from './transaction.js'
 
 /**
  * Construct a `ChainStorage` backed by a Node `better-sqlite3` database.
@@ -36,33 +12,17 @@ import { bind, boundCount } from './bind.js'
  * @returns A `ChainStorage` implementation delegating to the bound database.
  */
 function createChainStorage (db: ChainDB): ChainStorage {
-  return {
-    nullifierExists: bind(nullifierExists, db),
-    insertNullifiersBatch: boundCount(insertNullifiersBatch, db),
-    getNullifiersByBlockRange: bind(getNullifiersByBlockRange, db),
-    deleteNullifiersFromBlock: boundCount(deleteNullifiersFromBlock, db),
-    getAllNullifiers: bind(getAllNullifiers, db),
-    getNullifiersFromBlock: bind(getNullifiersFromBlock, db),
-    insertCommitmentBatch: boundCount(insertCommitmentBatch, db),
-    getCommitmentsByLeafRange: bind(getCommitmentsByLeafRange, db),
-    getCommitmentsByBlockRange: bind(getCommitmentsByBlockRange, db),
-    deleteCommitmentsFromBlock: boundCount(deleteCommitmentsFromBlock, db),
-    getMerkleTree: bind(getMerkleTree, db),
-    getAllMerkleTrees: bind(getAllMerkleTrees, db),
-    setMerkleTree: boundCount(setMerkleTree, db),
-    getSyncState: bind(getSyncState, db),
-    updateSyncState: boundCount(updateSyncState, db),
-    getTxidSyncCursor: bind(getTxidSyncCursor, db),
-    setTxidSyncCursor: boundCount(setTxidSyncCursor, db),
-    insertRailgunTransactions: boundCount(insertRailgunTransactions, db),
-    getRailgunTransactionByTxid: bind(getRailgunTransactionByTxid, db),
-    getRailgunTransactionsByBlockRange: bind(getRailgunTransactionsByBlockRange, db),
-    getRailgunTransactionsByTreeRange: bind(getRailgunTransactionsByTreeRange, db),
-    findRailgunTransactionForLeaf: bind(findRailgunTransactionForLeaf, db),
-    insertUnshieldBatch: boundCount(insertUnshieldBatch, db),
-    getUnshieldsByBlockRange: bind(getUnshieldsByBlockRange, db),
-    insertScanBatch: bind(insertScanBatch, db),
-  }
+  return buildChainStorage(db, createSqliteTransactor(db))
 }
 
-export { createChainStorage }
+/**
+ * Record a validated snapshot checkpoint atomically on a Node
+ * `better-sqlite3` database.
+ * @param db - Staged chain database.
+ * @param checkpoint - Validated checkpoint metadata.
+ */
+async function recordSnapshotCheckpoint (db: ChainDB, checkpoint: SnapshotCheckpointInput): Promise<void> {
+  await createSqliteTransactor(db)((tx) => applySnapshotCheckpoint(tx, checkpoint))
+}
+
+export { createChainStorage, recordSnapshotCheckpoint }

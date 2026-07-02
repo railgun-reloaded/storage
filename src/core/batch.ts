@@ -8,17 +8,24 @@ function isEmptyBatch (batch: readonly unknown[]): boolean {
 }
 
 /**
- * Normalize a driver-reported affected-row count into a plain non-negative
- * integer, independent of whether the driver returned a `number` or `bigint`.
- * @param value - Raw affected-row count from the underlying driver.
+ * Normalize a driver-reported mutation result into a plain non-negative
+ * integer row count. Accepts a bare `number` or `bigint`, or a driver result
+ * object carrying the count under `changes` or `rowsAffected`.
+ * @param value - Raw mutation result from the underlying driver.
  * @returns A non-negative integer row count.
  */
-function normalizeMutationCount (value: number | bigint | null | undefined): number {
-  if (value === null || value === undefined) {
-    return 0
+function normalizeMutationCount (value: unknown): number {
+  if (value !== null && typeof value === 'object') {
+    const result = value as Record<string, unknown>
+    return normalizeMutationCount(result['changes'] ?? result['rowsAffected'])
   }
-  const count = typeof value === 'bigint' ? Number(value) : value
-  return count > 0 ? Math.trunc(count) : 0
+  if (typeof value === 'bigint') {
+    return value > 0n ? Number(value) : 0
+  }
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value > 0 ? Math.trunc(value) : 0
+  }
+  return 0
 }
 
 export { isEmptyBatch, normalizeMutationCount }

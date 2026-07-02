@@ -16,18 +16,23 @@ test('Node Entry: exposes the database factories', () => {
 test('Node Entry: exposes the storage adapter factories', () => {
   assert.equal(typeof node.createChainStorage, 'function')
   assert.equal(typeof node.createWalletStorage, 'function')
+  assert.equal(typeof node.createSqliteTransactor, 'function')
 })
 
-test('Node Entry: exposes the runtime-dependent queries', () => {
-  assert.equal(typeof node.getUnspentNotes, 'function')
-  assert.equal(typeof node.insertScanBatch, 'function')
-  assert.equal(typeof node.nullifierExists, 'function')
+test('Node Entry: exposes the chain bootstrap flow', () => {
+  assert.equal(typeof node.prepareChainBootstrap, 'function')
+  assert.equal(typeof node.promoteChainBootstrap, 'function')
+  assert.equal(typeof node.recordSnapshotCheckpoint, 'function')
 })
 
-test('Node Entry: re-exports the schemas and note converter', () => {
-  assert.ok(node.commitments, 'chain schema table is re-exported')
-  assert.ok(node.notes, 'wallet schema table is re-exported')
-  assert.equal(typeof node.toDBNote, 'function', 'note converter is re-exported')
+test('Node Entry: does not re-export the platform-neutral surface', () => {
+  const surface = node as Record<string, unknown>
+  assert.equal(surface['getUnspentNotes'], undefined, 'queries live on the shared layer')
+  assert.equal(surface['nullifierExists'], undefined, 'queries live on the shared layer')
+  assert.equal(surface['applyScanBatch'], undefined, 'queries live on the shared layer')
+  assert.equal(surface['commitments'], undefined, 'schemas live on the root entry')
+  assert.equal(surface['notes'], undefined, 'schemas live on the root entry')
+  assert.equal(surface['toDBNote'], undefined, 'note converter lives on the root entry')
 })
 
 test('Node Entry: defers loading the native module until a database is created', () => {

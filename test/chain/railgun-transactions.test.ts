@@ -1,7 +1,7 @@
 import assert from 'node:assert'
 import { test } from 'node:test'
 
-import type { DBNewRailgunTransaction } from '../../src/node/index.js'
+import type { DBNewRailgunTransaction } from '../../src/chain/index.js'
 import {
   getRailgunTransactionByTxid,
   getRailgunTransactionsByBlockRange,
@@ -11,7 +11,7 @@ import {
   insertRailgunTransactions,
   setTxidSyncCursor,
   updateSyncState
-} from '../../src/node/index.js'
+} from '../../src/chain/index.js'
 import { createTestChainDB } from '../utils.js'
 
 /**

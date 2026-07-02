@@ -3,9 +3,10 @@ import path from 'path'
 
 import { gt } from 'drizzle-orm'
 
-import { closeChainDB, createChainDB } from './db.js'
-import { getSnapshotCheckpoint } from './queries.js'
-import { syncState } from './schema.js'
+import { getSnapshotCheckpoint } from '../chain/queries.js'
+import { syncState } from '../chain/schema.js'
+
+import { closeChainDB, createChainDB } from './chain-db.js'
 
 const CHAIN_BOOTSTRAP_MARKER_VERSION = 1
 

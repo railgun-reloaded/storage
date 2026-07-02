@@ -3,9 +3,9 @@ import path from 'path'
 import type Database from 'better-sqlite3'
 import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3'
 
-import { loadDatabaseRuntime } from '../sqlite-loader.js'
+import * as schema from '../wallet/schema.js'
 
-import * as schema from './schema.js'
+import { loadDatabaseRuntime } from './sqlite-loader.js'
 
 /**
  * Configuration options for creating a wallet database.

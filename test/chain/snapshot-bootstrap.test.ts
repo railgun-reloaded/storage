@@ -4,16 +4,15 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
 
+import { getSnapshotCheckpoint, updateSyncState } from '../../src/chain/index.js'
 import {
   closeChainDB,
   createChainDB,
   getChainBootstrapPaths,
-  getSnapshotCheckpoint,
   prepareChainBootstrap,
   promoteChainBootstrap,
   recordSnapshotCheckpoint,
   recoverChainBootstrap,
-  updateSyncState
 } from '../../src/node/index.js'
 
 const CHAIN_ID = 11155111
@@ -102,7 +101,7 @@ test('validated staging database is promoted with its checkpoint', async (t) => 
   assert.equal(existsSync(paths.stagingPath), false)
   assert.equal(existsSync(paths.markerPath), false)
 
-  const targetDB = await createChainDB({ path: targetPath })
+  const targetDB = await createChainDB({ path: targetPath, runMigrations: true })
   const checkpoint = await getSnapshotCheckpoint(targetDB, CHAIN_ID)
   await closeChainDB(targetDB)
   assert.equal(checkpoint?.blockHeight, BLOCK_HEIGHT)
@@ -157,7 +156,7 @@ test('recovery preserves a promoted database when marker cleanup was interrupted
   assert.equal(existsSync(paths.targetPath), true)
   assert.equal(existsSync(paths.markerPath), false)
 
-  const checkpointDB = await createChainDB({ path: targetPath })
+  const checkpointDB = await createChainDB({ path: targetPath, runMigrations: true })
   const checkpoint = await getSnapshotCheckpoint(checkpointDB, CHAIN_ID)
   await closeChainDB(checkpointDB)
   assert.equal(checkpoint?.cid, CID)
