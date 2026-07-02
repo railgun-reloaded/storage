@@ -23,7 +23,7 @@
   ],
   "scripts": {
     "build": "tsc --build && npm run db:generate",
-    "clean": "tsc --build --clean",
+    "clean": "tsc --build --clean && git clean -fXq src test",
     "prepare": "npm run clean && npm run build",
     "lint": "eslint",
     "lint:fix": "eslint --fix",
