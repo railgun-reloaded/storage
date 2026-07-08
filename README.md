@@ -662,15 +662,6 @@ Tests run against in-memory databases (`path: ':memory:'`) via the factories in 
 - **Composite PKs**: Unique constraints on multi-column keys
 - **Two Configs**: Separate migration paths for chain/wallet
 
-## Roadmap
-
-- [ ] SQLCipher integration for wallet.db encryption
-- [ ] Database pruning (remove old nullifiers/commitments)
-- [ ] Snapshot import/export for fast chain.db bootstrap
-- [ ] Query optimization and prepared statement caching
-- [ ] Multi-wallet connection pooling
-- [ ] Compression for ciphertext storage (if added)
-
 ## License
 
 MIT
