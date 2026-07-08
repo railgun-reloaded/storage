@@ -43,5 +43,8 @@ jobs:
       - name: Validate browser package fixture
         run: npm run check:fixture
 
-      - name: Test
+      - name: Test node storage
         run: npm run test
+
+      - name: Test browser storage
+        run: npm run test:browser

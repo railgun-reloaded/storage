@@ -630,11 +630,16 @@ not upgradeable: delete the `.db` files and let them be recreated.
 ## Testing
 
 ```bash
-# Run tests (builds first)
+# Run Node/shared storage tests (builds first)
 npm test
+
+# Run the real-browser adapter contract suite
+npm run test:browser
 ```
 
-Tests run against in-memory databases (`path: ':memory:'`) via the factories in `test/utils.ts`.
+Node tests run against in-memory databases (`path: ':memory:'`) via the
+factories in `test/utils.ts`. Browser tests drive system Chrome through
+Playwright and run the shared contract suite against `./browser`.
 
 ## Security Considerations
 
