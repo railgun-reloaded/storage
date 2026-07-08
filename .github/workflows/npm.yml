@@ -22,6 +22,15 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Verify committed migrations match schema
+        run: |
+          npm run db:generate
+          if [ -n "$(git status --porcelain -- drizzle)" ]; then
+            git status --porcelain -- drizzle
+            echo "::error::drizzle/ is out of sync with the schema — run 'npm run db:generate' and commit the result"
+            exit 1
+          fi
+
       - name: Lint
         run: npm run lint
 

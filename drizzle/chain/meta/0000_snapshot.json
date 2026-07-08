@@ -1,0 +1,505 @@
+{
+  "version": "6",
+  "dialect": "sqlite",
+  "id": "6c09f5fa-8b3e-4f85-b8cd-5cb8aecc9153",
+  "prevId": "00000000-0000-0000-0000-000000000000",
+  "tables": {
+    "commitments": {
+      "name": "commitments",
+      "columns": {
+        "hash": {
+          "name": "hash",
+          "type": "blob",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "commitmentType": {
+          "name": "commitmentType",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "transactionHash": {
+          "name": "transactionHash",
+          "type": "blob",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "blockNumber": {
+          "name": "blockNumber",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "treeNumber": {
+          "name": "treeNumber",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "treePosition": {
+          "name": "treePosition",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "commitment": {
+          "name": "commitment",
+          "type": "blob",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "commitment_tree_data_index": {
+          "name": "commitment_tree_data_index",
+          "columns": [
+            "treeNumber",
+            "treePosition"
+          ],
+          "isUnique": false
+        },
+        "commitment_tx_hash_index": {
+          "name": "commitment_tx_hash_index",
+          "columns": [
+            "transactionHash"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "tree_position_check": {
+          "name": "tree_position_check",
+          "value": "\"commitments\".\"treePosition\" < 65536"
+        }
+      }
+    },
+    "merkle_trees": {
+      "name": "merkle_trees",
+      "columns": {
+        "treeNumber": {
+          "name": "treeNumber",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "leaves": {
+          "name": "leaves",
+          "type": "blob",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "leafCount": {
+          "name": "leafCount",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "merkle_tree_element_byte_size_check": {
+          "name": "merkle_tree_element_byte_size_check",
+          "value": "length(\"merkle_trees\".\"leaves\") = 4194272"
+        },
+        "merkle_tree_leaf_count_check": {
+          "name": "merkle_tree_leaf_count_check",
+          "value": "\"merkle_trees\".\"leafCount\" <= 65536"
+        }
+      }
+    },
+    "nullifiers": {
+      "name": "nullifiers",
+      "columns": {
+        "nullifier": {
+          "name": "nullifier",
+          "type": "blob",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "transaction_hash": {
+          "name": "transaction_hash",
+          "type": "blob",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "block_number": {
+          "name": "block_number",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "tree_number": {
+          "name": "tree_number",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "nullifiers_block_number_index": {
+          "name": "nullifiers_block_number_index",
+          "columns": [
+            "block_number"
+          ],
+          "isUnique": false
+        },
+        "nullifiers_tree_number_index": {
+          "name": "nullifiers_tree_number_index",
+          "columns": [
+            "tree_number"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "nullifiers_nullifier_tree_number_pk": {
+          "columns": [
+            "nullifier",
+            "tree_number"
+          ],
+          "name": "nullifiers_nullifier_tree_number_pk"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "nullifier_size_check": {
+          "name": "nullifier_size_check",
+          "value": "length(\"nullifiers\".\"nullifier\") = 32"
+        }
+      }
+    },
+    "railgun_transactions": {
+      "name": "railgun_transactions",
+      "columns": {
+        "railgun_txid": {
+          "name": "railgun_txid",
+          "type": "blob",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "txid_version": {
+          "name": "txid_version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "chain_txid": {
+          "name": "chain_txid",
+          "type": "blob",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "graph_id": {
+          "name": "graph_id",
+          "type": "blob",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "block_number": {
+          "name": "block_number",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "timestamp": {
+          "name": "timestamp",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "nullifiers": {
+          "name": "nullifiers",
+          "type": "blob",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "commitments": {
+          "name": "commitments",
+          "type": "blob",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "bound_params_hash": {
+          "name": "bound_params_hash",
+          "type": "blob",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "has_unshield": {
+          "name": "has_unshield",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "unshield": {
+          "name": "unshield",
+          "type": "blob",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "utxo_tree_in": {
+          "name": "utxo_tree_in",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "utxo_tree_out": {
+          "name": "utxo_tree_out",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "utxo_batch_start_position_out": {
+          "name": "utxo_batch_start_position_out",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "verification_hash": {
+          "name": "verification_hash",
+          "type": "blob",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "railgun_transactions_block_tx_index": {
+          "name": "railgun_transactions_block_tx_index",
+          "columns": [
+            "block_number",
+            "chain_txid"
+          ],
+          "isUnique": false
+        },
+        "railgun_transactions_tree_range_index": {
+          "name": "railgun_transactions_tree_range_index",
+          "columns": [
+            "utxo_tree_out",
+            "utxo_batch_start_position_out"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "railgun_transactions_txid_size_check": {
+          "name": "railgun_transactions_txid_size_check",
+          "value": "length(\"railgun_transactions\".\"railgun_txid\") = 32"
+        },
+        "railgun_transactions_chain_txid_size_check": {
+          "name": "railgun_transactions_chain_txid_size_check",
+          "value": "length(\"railgun_transactions\".\"chain_txid\") = 32"
+        },
+        "railgun_transactions_bound_params_hash_size_check": {
+          "name": "railgun_transactions_bound_params_hash_size_check",
+          "value": "length(\"railgun_transactions\".\"bound_params_hash\") = 32"
+        }
+      }
+    },
+    "snapshot_checkpoints": {
+      "name": "snapshot_checkpoints",
+      "columns": {
+        "chain_id": {
+          "name": "chain_id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "cid": {
+          "name": "cid",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "block_height": {
+          "name": "block_height",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "trees": {
+          "name": "trees",
+          "type": "blob",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "validated_at": {
+          "name": "validated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "sync_states": {
+      "name": "sync_states",
+      "columns": {
+        "chain_id": {
+          "name": "chain_id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "last_block_height": {
+          "name": "last_block_height",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "last_txid_sync_block_height": {
+          "name": "last_txid_sync_block_height",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'0000000000000000000000000000000000000000000000000000000000000000'"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "unshields": {
+      "name": "unshields",
+      "columns": {
+        "transactionHash": {
+          "name": "transactionHash",
+          "type": "blob",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "blockNumber": {
+          "name": "blockNumber",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "timestamp": {
+          "name": "timestamp",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "toAddress": {
+          "name": "toAddress",
+          "type": "blob",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "token": {
+          "name": "token",
+          "type": "blob",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "amount": {
+          "name": "amount",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "fee": {
+          "name": "fee",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "eventLogIndex": {
+          "name": "eventLogIndex",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "unshields_transactionHash_eventLogIndex_pk": {
+          "columns": [
+            "transactionHash",
+            "eventLogIndex"
+          ],
+          "name": "unshields_transactionHash_eventLogIndex_pk"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "to_address_check": {
+          "name": "to_address_check",
+          "value": "length(\"unshields\".\"toAddress\") <= 20"
+        }
+      }
+    }
+  },
+  "views": {},
+  "enums": {},
+  "_meta": {
+    "schemas": {},
+    "tables": {},
+    "columns": {}
+  },
+  "internal": {
+    "indexes": {}
+  }
+}

@@ -22,7 +22,7 @@
     "drizzle/**/*.json"
   ],
   "scripts": {
-    "build": "tsc --build && npm run db:generate",
+    "build": "tsc --build",
     "clean": "tsc --build --clean && (git clean -fXq src test || true)",
     "prepare": "npm run clean && npm run build",
     "lint": "eslint",
