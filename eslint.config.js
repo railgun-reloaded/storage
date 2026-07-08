@@ -2,7 +2,7 @@ import railgunEslintConfig from '@railgun-reloaded/eslint-config'
 
 export default [
   {
-    ignores: ['dist/**', 'drizzle/**', 'config/**']
+    ignores: ['dist/**', 'drizzle/**', 'config/**', 'fixtures/**', 'src/browser/migration-catalog.generated.ts']
   },
   ...railgunEslintConfig(),
   {

@@ -1,0 +1,17 @@
+{
+  "name": "storage-vite-fixture",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "Packaging fixture: consumes the packed @railgun-reloaded/storage tarball in a plain Vite app with no Node polyfills or source aliases. Installed and driven by config/check-vite-fixture.mjs.",
+  "scripts": {
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "vite": "^7.3.0"
+  },
+  "dependencies": {
+    "@sqlite.org/sqlite-wasm": "3.53.0-build1"
+  }
+}

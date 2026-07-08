@@ -16,4 +16,7 @@ tsconfig.test.tsbuildinfo
 coverage
 *.gz
 *.db
-.env
+src/browser/migration-catalog.generated.ts
+fixtures/vite-app/node_modules
+fixtures/vite-app/dist
+fixtures/vite-app/package-lock.json

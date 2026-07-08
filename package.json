@@ -13,6 +13,10 @@
     "./node": {
       "types": "./src/node/index.d.ts",
       "default": "./src/node/index.js"
+    },
+    "./browser": {
+      "types": "./src/browser/index.d.ts",
+      "default": "./src/browser/index.js"
     }
   },
   "files": [
@@ -22,13 +26,14 @@
     "drizzle/**/*.json"
   ],
   "scripts": {
-    "build": "tsc --build",
+    "build": "node config/generate-migration-catalog.mjs && tsc --build",
     "clean": "tsc --build --clean && (git clean -fXq src test || true)",
     "prepare": "npm run clean && npm run build",
     "lint": "eslint",
     "lint:fix": "eslint --fix",
     "check:package": "publint",
-    "check:browser": "esbuild src/index.js --bundle --platform=browser --format=esm --outfile=/dev/null",
+    "check:fixture": "node config/check-vite-fixture.mjs",
+    "check:browser": "esbuild src/index.js --bundle --platform=browser --format=esm --outfile=/dev/null && esbuild src/browser/index.js src/browser/db-worker.js --bundle --platform=browser --format=esm --external:@sqlite.org/sqlite-wasm --outdir=/tmp/railgun-storage-browser-check",
     "pretest": "npm run build",
     "test": "node --test --enable-source-maps \"test/**/*.test.js\"",
     "db:generate:chain": "tsc --build && drizzle-kit generate --config=config/drizzle.chain.config.ts",
@@ -52,9 +57,13 @@
     "drizzle-orm": "^0.36.4"
   },
   "peerDependencies": {
+    "@sqlite.org/sqlite-wasm": "^3.53.0-build1",
     "better-sqlite3": "^11.8.1"
   },
   "peerDependenciesMeta": {
+    "@sqlite.org/sqlite-wasm": {
+      "optional": true
+    },
     "better-sqlite3": {
       "optional": true
     }
@@ -62,10 +71,12 @@
   "devDependencies": {
     "@railgun-reloaded/eslint-config": "^1.1.0",
     "@railgun-reloaded/tsconfig": "^1.2.0",
+    "@sqlite.org/sqlite-wasm": "^3.53.0-build1",
     "@types/node": "^24.0.3",
     "better-sqlite3": "^11.8.1",
     "drizzle-kit": "^0.29.1",
     "esbuild": "^0.28.1",
+    "playwright-core": "^1.61.1",
     "publint": "^0.3.21",
     "typescript": "^5.8.3"
   },

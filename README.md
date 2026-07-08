@@ -1,21 +1,25 @@
 # @railgun-reloaded/storage
 
-Persistence layer for RAILGUN Reloaded using Drizzle ORM with SQLite (better-sqlite3).
+Persistence layer for RAILGUN Reloaded using Drizzle ORM with SQLite.
 
 All public storage/database operations are asynchronous and return a `Promise`, so the same API shape works on runtimes where storage is async-only.
 
 ## Entry Points
 
-The package is split into two entry points along its runtime boundary:
+The package is split into runtime entry points:
 
 - **`@railgun-reloaded/storage`** — the runtime-agnostic surface: the chain and wallet schemas, their inferred types, and the note converter. It carries no native database dependency.
 - **`@railgun-reloaded/storage/node`** — the complete Node surface. It re-exports everything from the root entry and adds the runtime-dependent queries and the `better-sqlite3`-backed database factories.
+- **`@railgun-reloaded/storage/browser`** — the browser SQLite adapter. It creates worker-hosted `@sqlite.org/sqlite-wasm` databases, applies the embedded migration catalog, and returns the same `ChainStorage` and `WalletStorage` contracts as Node.
 
-`better-sqlite3` is an **optional peer dependency** used only by the `./node` entry, so the root entry installs and imports in a browser toolchain with no native driver, no `Buffer` global, and no polyfills. Node consumers install `better-sqlite3` themselves; the `./node` entry loads it lazily — importing the entry does not require the native module, only creating a database does — and the factories throw a clear error naming the missing peer when it is absent.
+`better-sqlite3` is an **optional peer dependency** used only by the `./node` entry. `@sqlite.org/sqlite-wasm` is an **optional peer dependency** used only by the `./browser` entry. The root entry installs and imports in a browser toolchain with no native driver, no `Buffer` global, and no polyfills.
 
 ```typescript
 // Node consumers: import the database factories and queries from ./node
 import { createChainDB, getUnspentNotes } from '@railgun-reloaded/storage/node';
+
+// Browser consumers: import persistent SQLite factories from ./browser
+import { chainDatabaseName, createChainDB } from '@railgun-reloaded/storage/browser';
 
 // Schema-only / type-only consumers: import from the root entry
 import type { DBNewNote } from '@railgun-reloaded/storage';
@@ -47,9 +51,53 @@ npm install @railgun-reloaded/storage
 
 # Node consumers — also install the native driver for the ./node entry
 npm install @railgun-reloaded/storage better-sqlite3
+
+# Browser storage consumers — also install the WASM driver for ./browser
+npm install @railgun-reloaded/storage @sqlite.org/sqlite-wasm
 ```
 
 ## Quick Start
+
+### Browser Storage
+
+```typescript
+import {
+  chainDatabaseName,
+  closeChainDB,
+  closeWalletDB,
+  createChainDB,
+  createChainStorage,
+  createWalletDB,
+  createWalletStorage,
+  deleteDatabase,
+} from '@railgun-reloaded/storage/browser';
+
+const chainDb = await createChainDB({
+  name: chainDatabaseName({ chain: 1, railgunVersion: 0 }),
+});
+const chainStorage = createChainStorage(chainDb);
+await chainStorage.updateSyncState(1, 0n);
+
+const walletDb = await createWalletDB({ name: 'wallets' });
+const walletStorage = createWalletStorage(walletDb);
+await walletStorage.createWallet({
+  id: 'wallet-1',
+  encryptedKeys: new Uint8Array(32),
+  name: 'Primary wallet',
+});
+
+await closeChainDB(chainDb); // keeps persistent data
+await closeWalletDB(walletDb); // keeps persistent data
+await deleteDatabase(chainDatabaseName({ chain: 1, railgunVersion: 0 })); // explicit deletion
+await deleteDatabase('wallets'); // explicit deletion
+```
+
+Browser databases use logical names, not file paths. Chain databases should use
+`chainDatabaseName({ chain, railgunVersion })`; wallet database names are chosen
+by the application and may contain multiple wallet rows. Use `{ ephemeral: true
+}` for throwaway test databases. Persistent opens fail fast with
+`BrowserStorageError` code `DATABASE_BUSY` when another tab or worker holds the
+same logical database; pass `waitForLock: true` to wait instead.
 
 ### Chain Database
 

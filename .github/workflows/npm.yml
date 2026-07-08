@@ -40,5 +40,8 @@ jobs:
       - name: Resolve browser bundle
         run: npm run check:browser
 
+      - name: Validate browser package fixture
+        run: npm run check:fixture
+
       - name: Test
         run: npm run test
