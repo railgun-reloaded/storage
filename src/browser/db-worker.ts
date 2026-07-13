@@ -284,6 +284,14 @@ async function handleRequest (request: WorkerRequest): Promise<unknown> {
         db.close()
         db = undefined
       }
+      if (poolUtil) {
+        // The SAH pool keeps its OPFS sync access handles open independently
+        // of the database; release them (keeping the files) before
+        // acknowledging the close so a subsequent deleteDatabase never races
+        // the browser's asynchronous handle reclamation after termination.
+        poolUtil.pauseVfs()
+        poolUtil = undefined
+      }
       return undefined
     }
   }
