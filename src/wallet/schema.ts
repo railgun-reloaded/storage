@@ -5,7 +5,12 @@
  * schema is consumed by Drizzle ORM to provide type-safe queries.
  */
 import { sql } from 'drizzle-orm'
-import { index, integer, primaryKey, sqliteTable, text, unique } from 'drizzle-orm/sqlite-core'
+import { integer } from 'drizzle-orm/sqlite-core/columns/integer'
+import { text } from 'drizzle-orm/sqlite-core/columns/text'
+import { index } from 'drizzle-orm/sqlite-core/indexes'
+import { primaryKey } from 'drizzle-orm/sqlite-core/primary-keys'
+import { sqliteTable } from 'drizzle-orm/sqlite-core/table'
+import { unique } from 'drizzle-orm/sqlite-core/unique-constraint'
 
 import { bigint, msgpackBlob, uint8Array } from '../column-types.js'
 

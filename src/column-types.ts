@@ -1,5 +1,5 @@
 import { DecodeError, ExtensionCodec, decode, encode } from '@msgpack/msgpack'
-import { customType } from 'drizzle-orm/sqlite-core'
+import { customType } from 'drizzle-orm/sqlite-core/columns/custom'
 
 const BIGINT_EXT_TYPE = 0
 const extensionCodec = new ExtensionCodec()

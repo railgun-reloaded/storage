@@ -6,7 +6,12 @@
  * provided to handle bigint and msgpack serialization.
  */
 import { sql } from 'drizzle-orm'
-import { check, index, integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { check } from 'drizzle-orm/sqlite-core/checks'
+import { integer } from 'drizzle-orm/sqlite-core/columns/integer'
+import { text } from 'drizzle-orm/sqlite-core/columns/text'
+import { index } from 'drizzle-orm/sqlite-core/indexes'
+import { primaryKey } from 'drizzle-orm/sqlite-core/primary-keys'
+import { sqliteTable } from 'drizzle-orm/sqlite-core/table'
 
 import { bigint, msgpackBlob, uint8Array } from '../column-types.js'
 /**
