@@ -59,6 +59,27 @@ function runWalletStorageContract (name: string, makeHarness: WalletHarnessFacto
       assert.deepEqual(await storage.getAllNotes(WALLET_ID, 1), [])
     }))
 
+    test('createWallet reports a duplicate id instead of throwing', withWallet(async ({ storage }) => {
+      const first = createTestWallet({ id: 'duplicate' })
+      assert.equal(await storage.createWallet(first), true)
+
+      const second = createTestWallet({ id: 'duplicate' })
+      assert.equal(await storage.createWallet(second), false)
+
+      // The original row survives: a rejected insert must not overwrite the
+      // key material of the wallet already stored under that id.
+      const stored = await storage.getWallet('duplicate')
+      assert.deepEqual(stored?.encryptedKeys, first.encryptedKeys)
+      assert.equal((await storage.listWallets()).filter((w) => w.id === 'duplicate').length, 1)
+    }))
+
+    test('createWallet still raises a failure that is not an id collision', withWallet(async ({ storage }) => {
+      // A false return has to mean "this id is taken" and nothing else, so a
+      // row that violates a different constraint must still surface.
+      const invalid = createTestWallet({ encryptedKeys: undefined as unknown as Uint8Array })
+      await assert.rejects(storage.createWallet(invalid))
+    }))
+
     test('insertNote normalizes the token and ignores conflicts', withWallet(async ({ storage }) => {
       const note = createTestNote({ walletId: WALLET_ID, token: '0x000000000000000000000000000000000000ABCD' })
       await storage.insertNote(note)

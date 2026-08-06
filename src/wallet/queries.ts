@@ -107,14 +107,19 @@ function shouldRefreshPoiStatus (
 }
 
 /**
- * Insert a new wallet record and return its ID.
+ * Insert a new wallet record, leaving any existing row for the same id
+ * untouched.
  * @param db - Wallet database instance.
  * @param wallet - Data for the new wallet.
- * @returns The `id` of the created wallet.
+ * @returns True when a row was inserted, false when the id already existed.
  */
-async function createWallet (db: WalletDatabase, wallet: DBNewWallet): Promise<string> {
-  await db.insert(wallets).values(wallet).run()
-  return wallet.id
+async function createWallet (db: WalletDatabase, wallet: DBNewWallet): Promise<boolean> {
+  const inserted = await db
+    .insert(wallets)
+    .values(wallet)
+    .onConflictDoNothing({ target: wallets.id })
+    .returning({ id: wallets.id })
+  return inserted.length > 0
 }
 
 /**

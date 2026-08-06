@@ -83,11 +83,15 @@ async function runWalletFixture () {
   const db = await createWalletDB({ name })
   const storage = createWalletStorage(db)
 
-  const walletId = await storage.createWallet({
-    id: 'fixture-wallet-1',
+  const walletId = 'fixture-wallet-1'
+  const created = await storage.createWallet({
+    id: walletId,
     encryptedKeys: randomBytes(64),
     name: 'fixture',
   })
+  if (created !== true) {
+    throw new Error('wallet: expected a fresh insert, got ' + String(created))
+  }
   const wallet = await storage.getWallet(walletId)
   if (wallet?.name !== 'fixture') {
     throw new Error('wallet: read-back mismatch: ' + String(wallet?.name))

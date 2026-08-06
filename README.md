@@ -141,8 +141,8 @@ const walletDb = await createWalletDB({
   path: '~/.railgun/wallets.db',
 });
 
-// Create wallet
-await createWallet(walletDb, {
+// Create wallet; false means a wallet with this id already existed
+const created = await createWallet(walletDb, {
   id: 'wallet-1',
   encryptedKeys: encryptedKeyBundle, // Uint8Array, encrypted by the caller
   name: 'My RAILGUN Wallet',
@@ -321,8 +321,8 @@ createWalletDB(config: WalletDBConfig): Promise<WalletDB>
 #### Wallet Operations
 
 ```typescript
-// Create wallet
-createWallet(db: WalletDB, wallet: DBNewWallet): Promise<string>
+// Create wallet; resolves false when the id already exists
+createWallet(db: WalletDB, wallet: DBNewWallet): Promise<boolean>
 
 // Get wallet
 getWallet(db: WalletDB, walletId: string): Promise<DBWallet | undefined>

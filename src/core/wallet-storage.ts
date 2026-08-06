@@ -20,11 +20,12 @@ import type {
  */
 type WalletStorage = {
   /**
-   * Insert a new wallet record.
+   * Insert a new wallet record, leaving any existing row for the same id
+   * untouched.
    * @param wallet - Data for the new wallet.
-   * @returns The `id` of the created wallet.
+   * @returns True when a row was inserted, false when the id already existed.
    */
-  createWallet (wallet: DBNewWallet): Promise<string>
+  createWallet (wallet: DBNewWallet): Promise<boolean>
 
   /**
    * Retrieve a wallet by its ID.
