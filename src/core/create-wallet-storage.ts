@@ -55,9 +55,23 @@ function createWalletStorage (db: WalletDatabase, transaction: Transactor<Wallet
      * transaction capability.
      * @param identities - Note identities to update.
      * @param spentTxid - Transaction ID that spent the notes.
+     * @param spentBlockNumber - Block containing the spending transaction.
+     * @param spentTimestamp - Timestamp of the spending block, or `null` when
+     * the data source does not carry one for this transaction.
      * @returns Number of rows updated.
      */
-    markNotesSpentBatch: (identities, spentTxid) => transaction((tx) => applyNoteSpends(tx, identities, spentTxid)),
+    markNotesSpentBatch: (
+      identities,
+      spentTxid,
+      spentBlockNumber,
+      spentTimestamp
+    ) => transaction((tx) => applyNoteSpends(
+      tx,
+      identities,
+      spentTxid,
+      spentBlockNumber,
+      spentTimestamp
+    )),
     getAllNotes: bind(getAllNotes, db),
     getNotesNeedingPoiRefresh: bind(getNotesNeedingPoiRefresh, db),
     updateNotePoiStatus: bind(updateNotePoiStatus, db),

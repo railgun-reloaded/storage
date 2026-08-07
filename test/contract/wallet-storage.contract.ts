@@ -113,11 +113,27 @@ function runWalletStorageContract (name: string, makeHarness: WalletHarnessFacto
       assert.equal((await storage.getUnspentNotes(WALLET_ID, 1)).length, 2)
 
       const spentTxid = randomBytes(32)
-      assert.equal(await storage.markNoteSpent({ walletId: WALLET_ID, chainId: 1, commitment: a.commitment }, spentTxid), 1)
+      const spentBlockNumber = 123n
+      const spentTimestamp = new Date('2025-01-02T03:04:05.000Z')
+      assert.equal(await storage.markNoteSpent(
+        { walletId: WALLET_ID, chainId: 1, commitment: a.commitment },
+        spentTxid,
+        spentBlockNumber,
+        spentTimestamp
+      ), 1)
       assert.equal((await storage.getUnspentNotes(WALLET_ID, 1)).length, 1)
 
-      assert.equal(await storage.markNotesSpentBatch([{ walletId: WALLET_ID, chainId: 1, commitment: b.commitment }], spentTxid), 1)
+      assert.equal(await storage.markNotesSpentBatch(
+        [{ walletId: WALLET_ID, chainId: 1, commitment: b.commitment }],
+        spentTxid,
+        spentBlockNumber,
+        spentTimestamp
+      ), 1)
       assert.equal((await storage.getUnspentNotes(WALLET_ID, 1)).length, 0)
+
+      const stored = await storage.getAllNotes(WALLET_ID, 1)
+      assert.ok(stored.every((note) => note.spentBlockNumber === spentBlockNumber))
+      assert.ok(stored.every((note) => note.spentTimestamp?.getTime() === spentTimestamp.getTime()))
     }))
 
     test('notes are addressable by commitment and by nullifier', withWallet(async ({ storage }) => {
@@ -182,7 +198,12 @@ function runWalletStorageContract (name: string, makeHarness: WalletHarnessFacto
       const a = createTestNote({ walletId: WALLET_ID })
       const b = createTestNote({ walletId: WALLET_ID })
       await storage.insertNotesBatch([a, b])
-      await storage.markNoteSpent({ walletId: WALLET_ID, chainId: 1, commitment: a.commitment }, randomBytes(32))
+      await storage.markNoteSpent(
+        { walletId: WALLET_ID, chainId: 1, commitment: a.commitment },
+        randomBytes(32),
+        1n,
+        new Date(0)
+      )
       await storage.insertTxHistory(createTestTxHistory({ id: 'tx-1', blockNumber: 1n }))
 
       const stats = await storage.getWalletDBStats(WALLET_ID)

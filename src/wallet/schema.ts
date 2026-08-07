@@ -52,6 +52,8 @@ const notes = sqliteTable(
     tokenSubID: uint8Array('token_sub_id').notNull().default(ERC20_NULL_TOKEN_SUB_ID),
     spent: integer('spent', { mode: 'boolean' }).notNull().default(false),
     spentTxid: uint8Array('spent_txid'),
+    spentBlockNumber: bigint('spent_block_number'),
+    spentTimestamp: integer('spent_timestamp', { mode: 'timestamp' }),
     blockNumber: bigint('block_number').notNull(),
     treeNumber: integer('tree_id').notNull(),
     treePosition: integer('leaf_index').notNull(),

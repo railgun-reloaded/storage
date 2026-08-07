@@ -278,41 +278,57 @@ async function getNoteByNullifier (db: WalletDatabase, identity: NoteNullifierId
 }
 
 /**
- * Mark a note as spent and record the transaction ID that spent it.
+ * Mark a note as spent and record its spending transaction provenance.
  * @param db - Wallet database instance.
  * @param identity - Wallet, chain, and commitment of the note to update.
  * @param spentTxid - Transaction ID that spent the note.
+ * @param spentBlockNumber - Block containing the spending transaction.
+ * @param spentTimestamp - Timestamp of the spending block, or `null` when the
+ * data source does not carry one for this transaction.
  * @returns Number of rows updated.
  */
 async function markNoteSpent (
   db: WalletDatabase,
   identity: NoteIdentity,
-  spentTxid: Uint8Array
+  spentTxid: Uint8Array,
+  spentBlockNumber: bigint,
+  spentTimestamp: Date | null
 ): Promise<number> {
   const result = await db.update(notes)
-    .set({ spent: true, spentTxid })
+    .set({ spent: true, spentTxid, spentBlockNumber, spentTimestamp })
     .where(noteIdentityWhere(identity))
     .run()
   return normalizeMutationCount(result)
 }
 
 /**
- * Mark multiple notes as spent, recording the transaction ID that spent them.
+ * Mark multiple notes as spent, recording their spending transaction provenance.
  * The updates must land together: run this inside a transaction context so
  * the batch persists atomically.
  * @param db - Wallet database or transaction context.
  * @param identities - Array of wallet/chain/commitment note identities to update.
  * @param spentTxid - Transaction ID that spent the notes.
+ * @param spentBlockNumber - Block containing the spending transaction.
+ * @param spentTimestamp - Timestamp of the spending block, or `null` when the
+ * data source does not carry one for this transaction.
  * @returns Number of rows updated.
  */
 async function applyNoteSpends (
   db: WalletDatabase,
   identities: NoteIdentity[],
-  spentTxid: Uint8Array
+  spentTxid: Uint8Array,
+  spentBlockNumber: bigint,
+  spentTimestamp: Date | null
 ): Promise<number> {
   let updated = 0
   for (const identity of identities) {
-    updated += await markNoteSpent(db, identity, spentTxid)
+    updated += await markNoteSpent(
+      db,
+      identity,
+      spentTxid,
+      spentBlockNumber,
+      spentTimestamp
+    )
   }
   return updated
 }

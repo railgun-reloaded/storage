@@ -164,7 +164,13 @@ test('Wallet Database - Notes: commitment identity is wallet and chain scoped', 
   assert.equal((await getNoteByCommitment(db, noteIdentity(wallet2Chain1)))?.amount, 2n)
   assert.equal((await getNoteByCommitment(db, noteIdentity(wallet1Chain137)))?.amount, 3n)
 
-  assert.equal(await markNoteSpent(db, noteIdentity(wallet1Chain1), spentTxid), 1)
+  assert.equal(await markNoteSpent(
+    db,
+    noteIdentity(wallet1Chain1),
+    spentTxid,
+    100n,
+    new Date(1_000)
+  ), 1)
   assert.equal(await updateNotePoiStatus(db, noteIdentity(wallet1Chain137), blindedCommitment, poisPerList), 1)
 
   assert.equal((await getNoteByCommitment(db, noteIdentity(wallet1Chain1)))?.spent, true)
@@ -261,17 +267,27 @@ test('Wallet Database - Notes: mark note as spent', async () => {
   const wallet = createTestWallet()
   const note = createTestNote({ walletId: wallet.id, spent: false })
   const spentTxid = hexToBytes('0xfe32')
+  const spentBlockNumber = 1234n
+  const spentTimestamp = new Date('2025-01-02T03:04:05.000Z')
 
   await createWallet(db, wallet)
   await insertNote(db, note)
 
-  await markNoteSpent(db, noteIdentity(note), spentTxid as Uint8Array)
+  await markNoteSpent(
+    db,
+    noteIdentity(note),
+    spentTxid,
+    spentBlockNumber,
+    spentTimestamp
+  )
 
   const retrieved = await getNoteByCommitment(db, noteIdentity(note))
 
   assert.ok(retrieved)
   assert.equal(retrieved?.spent, true)
   assert.deepEqual(retrieved?.spentTxid, spentTxid)
+  assert.equal(retrieved?.spentBlockNumber, spentBlockNumber)
+  assert.deepEqual(retrieved?.spentTimestamp, spentTimestamp)
 })
 
 test('Wallet Database - Notes: batch mark notes as spent', async () => {
@@ -284,15 +300,26 @@ test('Wallet Database - Notes: batch mark notes as spent', async () => {
   ]
   const identities = notes.map(noteIdentity)
   const spentTxid = hexToBytes('0xff32')
+  const spentBlockNumber = 5678n
+  const spentTimestamp = new Date('2025-02-03T04:05:06.000Z')
 
   await createWallet(db, wallet)
   await insertNotesBatch(db, notes)
 
-  const count = await applyNoteSpends(db, identities, spentTxid)
+  const count = await applyNoteSpends(
+    db,
+    identities,
+    spentTxid,
+    spentBlockNumber,
+    spentTimestamp
+  )
 
   assert.equal(count, 2)
   const unspent = await getUnspentNotes(db, wallet.id, 1)
   assert.equal(unspent.length, 0)
+  const storedNotes = await getAllNotes(db, wallet.id, 1)
+  assert.ok(storedNotes.every((note) => note.spentBlockNumber === spentBlockNumber))
+  assert.ok(storedNotes.every((note) => note.spentTimestamp?.getTime() === spentTimestamp.getTime()))
 })
 
 test('Wallet Database - Scan State: set and get', async () => {

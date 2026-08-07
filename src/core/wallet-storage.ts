@@ -95,21 +95,37 @@ type WalletStorage = {
   getNoteByNullifier (identity: NoteNullifierIdentity): Promise<DBNote | undefined>
 
   /**
-   * Mark a note as spent and record the spending transaction ID.
+   * Mark a note as spent and record its spending transaction provenance.
    * @param identity - Wallet, chain, and commitment of the note to update.
    * @param spentTxid - Transaction ID that spent the note.
+   * @param spentBlockNumber - Block containing the spending transaction.
+   * @param spentTimestamp - Timestamp of the spending block, or `null` when the
+   * data source does not carry one for this transaction.
    * @returns Normalized count of updated rows.
    */
-  markNoteSpent (identity: NoteIdentity, spentTxid: Uint8Array): Promise<number>
+  markNoteSpent (
+    identity: NoteIdentity,
+    spentTxid: Uint8Array,
+    spentBlockNumber: bigint,
+    spentTimestamp: Date | null
+  ): Promise<number>
 
   /**
    * Mark multiple notes as spent atomically. An empty list is a no-op and
    * returns `0`.
    * @param identities - Note identities to update.
    * @param spentTxid - Transaction ID that spent the notes.
+   * @param spentBlockNumber - Block containing the spending transaction.
+   * @param spentTimestamp - Timestamp of the spending block, or `null` when the
+   * data source does not carry one for this transaction.
    * @returns Normalized count of updated rows.
    */
-  markNotesSpentBatch (identities: NoteIdentity[], spentTxid: Uint8Array): Promise<number>
+  markNotesSpentBatch (
+    identities: NoteIdentity[],
+    spentTxid: Uint8Array,
+    spentBlockNumber: bigint,
+    spentTimestamp: Date | null
+  ): Promise<number>
 
   /**
    * Return all notes belonging to a wallet on a given chain.
