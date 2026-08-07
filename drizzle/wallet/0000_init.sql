@@ -9,6 +9,8 @@ CREATE TABLE `notes` (
 	`token_sub_id` blob DEFAULT x'0000000000000000000000000000000000000000000000000000000000000000' NOT NULL,
 	`spent` integer DEFAULT false NOT NULL,
 	`spent_txid` blob,
+	`spent_block_number` text,
+	`spent_timestamp` integer,
 	`block_number` text NOT NULL,
 	`tree_id` integer NOT NULL,
 	`leaf_index` integer NOT NULL,
