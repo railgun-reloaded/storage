@@ -5,7 +5,7 @@ import {
   createWallet,
   getNoteByNullifier,
   insertNotesBatch
-} from '../../src/wallet/index.js'
+} from '../../src/wallet/queries.js'
 import {
   createTestNote,
   createTestWallet,

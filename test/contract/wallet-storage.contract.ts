@@ -153,11 +153,17 @@ function runWalletStorageContract (name: string, makeHarness: WalletHarnessFacto
       assert.equal((await storage.getNotesNeedingPoiRefresh(WALLET_ID, 1)).length, 0)
 
       const note2 = createTestNote({ walletId: WALLET_ID })
-      await storage.insertNote(note2)
+      const note3 = createTestNote({ walletId: WALLET_ID })
+      await storage.insertNotesBatch([note2, note3])
+      const blinded2 = randomBytes(32)
+      const blinded3 = randomBytes(32)
       const updated = await storage.updateNotePoiStatusBatch([
-        { walletId: WALLET_ID, chainId: 1, commitment: note2.commitment, blindedCommitment: randomBytes(32), poisPerList: { listA: 'Valid' } },
+        { walletId: WALLET_ID, chainId: 1, commitment: note2.commitment, blindedCommitment: blinded2, poisPerList: { listA: 'Valid' } },
+        { walletId: WALLET_ID, chainId: 1, commitment: note3.commitment, blindedCommitment: blinded3, poisPerList: null },
       ])
-      assert.equal(updated, 1)
+      assert.equal(updated, 2)
+      assert.deepEqual((await storage.getNoteByCommitment({ walletId: WALLET_ID, chainId: 1, commitment: note2.commitment }))?.blindedCommitment, blinded2)
+      assert.deepEqual((await storage.getNoteByCommitment({ walletId: WALLET_ID, chainId: 1, commitment: note3.commitment }))?.blindedCommitment, blinded3)
     }))
 
     test('PPOI refresh gates on required list keys', withWallet(async ({ storage }) => {

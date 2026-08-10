@@ -212,18 +212,6 @@ function createTestUnshields (count: number, startBlock?: bigint) : DBNewUnshiel
   return result
 }
 
-/**
- * Randomly shuffle a given input array
- * @param arr - Input array to shuffle
- * @returns - Randomly shuffled input array
- */
-function shuffleArray (arr: any[]) {
-  return arr
-    .map(value => ({ value, sort: Math.random() }))
-    .sort((a, b) => a.sort - b.sort)
-    .map(({ value }) => value)
-}
-
 let walletCounter = 0
 /**
  * Creates a test wallet record.
@@ -281,7 +269,6 @@ export {
   createTestShieldCommitments,
   createTestTransactCommitments,
   createTestUnshields,
-  shuffleArray,
   createTestWallet,
   createTestNote,
   resetTestCounters,

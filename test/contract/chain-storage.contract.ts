@@ -50,8 +50,7 @@ function runChainStorageContract (name: string, makeHarness: ChainHarnessFactory
       await storage.insertNullifiersBatch([nullifiers[2]!, nullifiers[0]!, nullifiers[1]!])
 
       const all = await storage.getAllNullifiers()
-      assert.equal(all.length, 3)
-      assert.deepEqual(all.map((n) => n.blockNumber), [500n, 501n, 502n])
+      assert.deepEqual(all, nullifiers)
       assert.equal(await storage.nullifierExists(nullifiers[0]!.nullifier, 0), true)
       assert.equal(await storage.nullifierExists(new Uint8Array(32), 0), false)
     }))
@@ -82,11 +81,12 @@ function runChainStorageContract (name: string, makeHarness: ChainHarnessFactory
     }))
 
     test('commitments persist with leaf-range and block-range ordering', withChain(async ({ storage }) => {
-      await storage.insertCommitmentBatch(createTestCommitments(4, 200n))
+      const commitments = createTestCommitments(4, 200n)
+      await storage.insertCommitmentBatch(commitments)
       const byLeaf = await storage.getCommitmentsByLeafRange(0, 1, 2)
-      assert.deepEqual(byLeaf.map((c) => c.treePosition), [1, 2])
+      assert.deepEqual(byLeaf, commitments.slice(1, 3))
       const byBlock = await storage.getCommitmentsByBlockRange(200n, 201n)
-      assert.deepEqual(byBlock.map((c) => c.blockNumber), [200n, 201n])
+      assert.deepEqual(byBlock, commitments.slice(0, 2))
       assert.equal(await storage.deleteCommitmentsFromBlock(202n), 2)
     }))
 
@@ -117,7 +117,10 @@ function runChainStorageContract (name: string, makeHarness: ChainHarnessFactory
       assert.equal(await storage.insertRailgunTransactions([tx]), 0)
 
       const fetched = await storage.getRailgunTransactionByTxid(tx.railgunTxid)
-      assert.ok(fetched)
+      assert.deepEqual(fetched?.railgunTxid, tx.railgunTxid)
+      assert.deepEqual(fetched?.nullifiers, tx.nullifiers)
+      assert.deepEqual(fetched?.commitments, tx.commitments)
+      assert.deepEqual(fetched?.boundParamsHash, tx.boundParamsHash)
       assert.deepEqual((await storage.getRailgunTransactionsByBlockRange(300n, 300n)).length, 1)
       assert.deepEqual((await storage.getRailgunTransactionsByTreeRange(0, 0, 10)).length, 1)
       assert.ok(await storage.findRailgunTransactionForLeaf(0, 6))
@@ -125,9 +128,10 @@ function runChainStorageContract (name: string, makeHarness: ChainHarnessFactory
     }))
 
     test('unshields persist and return ordered by block', withChain(async ({ storage }) => {
-      await storage.insertUnshieldBatch(createTestUnshields(3, 100n))
+      const unshields = createTestUnshields(3, 100n)
+      await storage.insertUnshieldBatch(unshields)
       const range = await storage.getUnshieldsByBlockRange(100n, 102n)
-      assert.deepEqual(range.map((u) => u.blockNumber), [100n, 101n, 102n])
+      assert.deepEqual(range, unshields)
     }))
 
     test('insertScanBatch persists every member and advances cursors', withChain(async ({ storage }) => {
@@ -142,19 +146,29 @@ function runChainStorageContract (name: string, makeHarness: ChainHarnessFactory
       })
 
       assert.equal((await storage.getAllNullifiers()).length, 2)
+      assert.equal((await storage.getCommitmentsByBlockRange(700n, 701n)).length, 2)
+      assert.equal((await storage.getUnshieldsByBlockRange(700n, 700n)).length, 1)
       assert.equal((await storage.getAllMerkleTrees()).length, 1)
+      assert.equal((await storage.getRailgunTransactionsByBlockRange(700n, 700n)).length, 1)
       assert.equal((await storage.getSyncState(1))?.lastBlockHeight, 700n)
       assert.equal(await storage.getTxidSyncCursor(1), 700n)
     }))
 
-    test('insertScanBatch leaves the txid cursor untouched without railgun txs', withChain(async ({ storage }) => {
+    test('insertScanBatch leaves the txid cursor untouched without a new railgun transaction', withChain(async ({ storage }) => {
+      const transaction = createTestRailgunTransaction({ blockNumber: 700n })
+      await storage.insertScanBatch({
+        chainID: 1,
+        blockNumber: 700n,
+        railgunTransactions: [transaction],
+      })
       await storage.insertScanBatch({
         chainID: 1,
         blockNumber: 800n,
         nullifiers: createTestNullifiers(1, 800n),
+        railgunTransactions: [transaction],
       })
       assert.equal((await storage.getSyncState(1))?.lastBlockHeight, 800n)
-      assert.equal(await storage.getTxidSyncCursor(1), 0n)
+      assert.equal(await storage.getTxidSyncCursor(1), 700n)
     }))
 
     test('insertScanBatch rolls back fully when a member is invalid', withChain(async ({ storage }) => {

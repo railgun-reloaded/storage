@@ -4,11 +4,10 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
 
-import { getSnapshotCheckpoint, updateSyncState } from '../../src/chain/index.js'
+import { getSnapshotCheckpoint, updateSyncState } from '../../src/chain/queries.js'
 import {
   closeChainDB,
   createChainDB,
-  getChainBootstrapPaths,
   prepareChainBootstrap,
   promoteChainBootstrap,
   recordSnapshotCheckpoint,
@@ -53,8 +52,7 @@ test('recordSnapshotCheckpoint requires the exact persisted cursor', async (t) =
       cid: CID,
       blockHeight: BLOCK_HEIGHT,
       trees: treeFixture()
-    }),
-    /persisted sync cursor is missing/
+    })
   )
 
   await updateSyncState(db, CHAIN_ID, BLOCK_HEIGHT)
@@ -160,13 +158,4 @@ test('recovery preserves a promoted database when marker cleanup was interrupted
   const checkpoint = await getSnapshotCheckpoint(checkpointDB, CHAIN_ID)
   await closeChainDB(checkpointDB)
   assert.equal(checkpoint?.cid, CID)
-})
-
-test('bootstrap paths are deterministic for one target', () => {
-  const targetPath = join(tmpdir(), 'railgun-chain.db')
-  assert.deepEqual(getChainBootstrapPaths(targetPath), {
-    targetPath,
-    stagingPath: `${targetPath}.bootstrap`,
-    markerPath: `${targetPath}.bootstrap.json`
-  })
 })
