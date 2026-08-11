@@ -45,6 +45,9 @@ RAILGUN Reloaded uses a **two-database architecture** for optimal performance an
 
 ## Installation
 
+This repository pins Node.js 24.18.0 in `.nvmrc` for CI and local development.
+The fixed version keeps CI runs consistent. Review and test each version update.
+
 ```bash
 # Browser / schema-only consumers — no native driver required
 npm install @railgun-reloaded/storage
