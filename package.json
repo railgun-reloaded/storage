@@ -61,7 +61,7 @@
   },
   "peerDependencies": {
     "@sqlite.org/sqlite-wasm": "^3.53.0-build1",
-    "better-sqlite3": "^11.8.1"
+    "better-sqlite3": "^13.0.0"
   },
   "peerDependenciesMeta": {
     "@sqlite.org/sqlite-wasm": {
@@ -76,7 +76,7 @@
     "@railgun-reloaded/tsconfig": "^1.2.0",
     "@sqlite.org/sqlite-wasm": "^3.53.0-build1",
     "@types/node": "^24.0.3",
-    "better-sqlite3": "^11.8.1",
+    "better-sqlite3": "^13.0.3",
     "drizzle-kit": "^0.29.1",
     "esbuild": "^0.28.1",
     "playwright-core": "^1.61.1",
