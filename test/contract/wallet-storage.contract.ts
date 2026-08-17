@@ -186,6 +186,18 @@ function runWalletStorageContract (name: string, makeHarness: WalletHarnessFacto
       assert.equal((await storage.getScanState(WALLET_ID, 1))?.lastScannedBlock, 300n)
     }))
 
+    test('transaction history returns every row until a limit is asked for', withWallet(async ({ storage }) => {
+      const ROWS = 120
+      await storage.insertTxHistoryBatch(
+        Array.from({ length: ROWS }, (_, index) =>
+          createTestTxHistory({ id: `tx-${index}`, blockNumber: BigInt(index) })
+        )
+      )
+
+      assert.equal((await storage.getTxHistory(WALLET_ID, 1)).length, ROWS)
+      assert.equal((await storage.getTxHistory(WALLET_ID, 1, 10)).length, 10)
+    }))
+
     test('transaction history dedupes and returns newest first', withWallet(async ({ storage }) => {
       assert.equal(await storage.insertTxHistoryBatch([]), 0)
       await storage.insertTxHistory(createTestTxHistory({ id: 'tx-1', blockNumber: 10n }))

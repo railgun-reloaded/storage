@@ -198,7 +198,7 @@ type WalletStorage = {
    * descending by block number.
    * @param walletId - Identifier of the wallet.
    * @param chainId - Chain identifier.
-   * @param limit - Maximum number of records to return.
+   * @param limit - Maximum number of rows to return. Omit for all of them.
    * @returns Transaction history rows ordered by block descending.
    */
   getTxHistory (walletId: string, chainId: number, limit?: number): Promise<DBTxHistory[]>

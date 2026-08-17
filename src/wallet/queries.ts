@@ -496,26 +496,29 @@ async function insertTxHistoryBatch (db: WalletDatabase, txs: DBNewTxHistory[]):
 }
 
 /**
- * Retrieve recent transaction history for a wallet on a given chain.
+ * Retrieve transaction history for a wallet on a given chain.
+ *
+ * Every row is returned unless the caller asks for fewer, so a caller that
+ * wants the whole history does not have to know a row count to ask for it.
  * @param db - Wallet database instance.
  * @param walletId - Identifier of the wallet.
  * @param chainId - Chain identifier.
- * @param limit - Maximum number of records to return (default 100).
+ * @param limit - Maximum number of rows to return. Omit for all of them.
  * @returns - Transaction history rows ordered by block desc.
  */
 async function getTxHistory (
   db: WalletDatabase,
   walletId: string,
   chainId: number,
-  limit: number = 100
+  limit?: number
 ) {
-  return db
+  const query = db
     .select()
     .from(txHistory)
     .where(and(eq(txHistory.walletId, walletId), eq(txHistory.chainId, chainId)))
     .orderBy(sql`${txHistory.blockNumber} DESC`)
-    .limit(limit)
-    .all()
+
+  return limit === undefined ? query.all() : query.limit(limit).all()
 }
 
 /**
